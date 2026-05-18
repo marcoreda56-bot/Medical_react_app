@@ -9,6 +9,7 @@ import { PatientDashBoard } from './dashboards/PatientDashBoard';
 import { AdminDashBoard } from './dashboards/AdminDashBoard';
 import { useAuth } from './context/AuthContext';
 import { Navbar } from "./components/NavBar.jsx"; // تأكد من مطابقة الحروف مع اسم الملف الفعلي
+import { Profile } from './pages/Profile.jsx';
 
 function AppContent() {
   const { currentUser, userRole, loading } = useAuth();
@@ -42,6 +43,9 @@ function AppContent() {
           path='/register' 
           element={currentUser ? <Navigate to={getRedirectPath()} replace /> : <Register />} 
         />
+        
+        <Route path="/profile" 
+        element={currentUser ? <Profile/> : <Navigate to="/login" replace/>} />
         
         <Route 
           path='/' 

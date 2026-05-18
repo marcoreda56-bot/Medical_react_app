@@ -32,27 +32,22 @@ const formatTimeTo12Hour = (timeString) => {
 export const DoctorDashBoard = () => {
   const { currentUser } = useAuth();
   
-  // 0 = الحجوزات الحالية، 1 = إدارة الجدول، 2 = سجل المريض التاريخي
   const [activeTab, setActiveTab] = useState(0);
 
-  // States المواعيد
   const [day, setDay] = useState('');
   const [startTime, setStartTime] = useState('');      
   const [workHours, setWorkHours] = useState('');      
   const [duration, setDuration] = useState(30);        
   const [slots, setSlots] = useState([]);
 
-  // States الحجوزات والروشتة
   const [appointments, setAppointments] = useState([]);
   const [openModal, setOpenModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [diagnosis, setDiagnosis] = useState('');
   const [prescription, setPrescription] = useState('');
 
-  // State للبحث جوه صفحة الـ History
   const [searchTerm, setSearchTerm] = useState('');
 
-  // مودال فرعي لعرض تفاصيل روشتة قديمة من التاريخ المرضي
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedHistoryRecord, setSelectedHistoryRecord] = useState(null);
 
@@ -92,7 +87,6 @@ export const DoctorDashBoard = () => {
     setAppointments(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
-  // دالة الموافقة على الميعاد (Approve)
   const handleApproveAppointment = async (appId) => {
     try {
       const appRef = doc(db, 'appointments', appId);
@@ -105,7 +99,6 @@ export const DoctorDashBoard = () => {
     }
   };
 
-  // دالة إلغاء الميعاد (Cancel)
   const handleCancelAppointment = async (appId) => {
     try {
       const appRef = doc(db, 'appointments', appId);
@@ -123,7 +116,6 @@ export const DoctorDashBoard = () => {
     setOpenModal(true);
   };
 
-  // دالة إتمام الكشف وحفظ الروشتة (Complete)
   const handleCompleteAppointment = async () => {
     if (!diagnosis.trim() || !prescription.trim()) {
       Toast.fire({ icon: 'error', title: 'Please fill in both fields.' });
@@ -196,7 +188,6 @@ export const DoctorDashBoard = () => {
     }
   };
 
-  // فلترة الكشوفات المنتهية فقط لعرضها في الـ Patient History مع ميزة البحث الذكي بالاسم
   const completedAppointments = appointments.filter(app => {
     const isCompleted = app.status === 'Completed';
     const matchesSearch = app.patientName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -217,7 +208,6 @@ export const DoctorDashBoard = () => {
         </Typography>
       </Box>
 
-      {/* الـ Tabs الرئيسية */}
       <Paper elevation={2} sx={{ mb: 4, borderRadius: 2 }}>
         <Tabs 
           value={activeTab} 
@@ -234,7 +224,6 @@ export const DoctorDashBoard = () => {
         </Tabs>
       </Paper>
 
-      {/* التبويب الأول: جدول الحجوزات النشطة (Pending & Approved) */}
       {activeTab === 0 && (
         <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#333', mb: 3 }}>
@@ -267,7 +256,6 @@ export const DoctorDashBoard = () => {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        {/* حالة الـ Pending */}
                         {app.status === 'Pending' && (
                           <>
                             <Button size="small" variant="contained" color="primary" onClick={() => handleApproveAppointment(app.id)}>
@@ -279,7 +267,6 @@ export const DoctorDashBoard = () => {
                           </>
                         )}
 
-                        {/* حالة الـ Approved */}
                         {app.status === 'Approved' && (
                           <>
                             <Button size="small" variant="contained" color="success" onClick={() => handleOpenCompleteModal(app)}>
@@ -300,7 +287,6 @@ export const DoctorDashBoard = () => {
         </Paper>
       )}
 
-      {/* التبويب الثاني: توليد وإدارة المواعيد والجدول */}
       {activeTab === 1 && (
         <Grid container spacing={4}>
           <Grid item xs={12} md={4}>
@@ -352,7 +338,6 @@ export const DoctorDashBoard = () => {
         </Grid>
       )}
 
-      {/* التبويب الثالث: سجلات المرضى والأرشيف الطبي */}
       {activeTab === 2 && (
         <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
@@ -410,13 +395,12 @@ export const DoctorDashBoard = () => {
         </Paper>
       )}
 
-      {/* مودال إنهاء الكشف وكتابة الروشتة */}
       <Modal open={openModal} onClose={() => setOpenModal(false)}>
         <Box sx={modalStyle}>
           <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#00796b', mb: 2 }}>Patient Medical Record</Typography>
           <Typography variant="body2" sx={{ mb: 2 }}>Patient: <strong>{selectedAppointment?.patientName}</strong></Typography>
-          <TextField label="Diagnosis (التشخيص)" fullWidth multiline rows={3} margin="normal" value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} />
-          <TextField label="Prescription & Notes (الروشتة والعلاج)" fullWidth multiline rows={4} margin="normal" value={prescription} onChange={(e) => setPrescription(e.target.value)} />
+          <TextField label="Diagnosis" fullWidth multiline rows={3} margin="normal" value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} />
+          <TextField label="Prescription & Notes " fullWidth multiline rows={4} margin="normal" value={prescription} onChange={(e) => setPrescription(e.target.value)} />
           <Box sx={{ display: 'flex', justifyContent: 'end', gap: 2, mt: 3 }}>
             <Button variant="text" onClick={() => setOpenModal(false)}>Cancel</Button>
             <Button variant="contained" color="success" onClick={handleCompleteAppointment}>Save & Complete Visit</Button>
@@ -424,7 +408,6 @@ export const DoctorDashBoard = () => {
         </Box>
       </Modal>
 
-      {/* مودال مراجعة السجلات الطبية القديمة */}
       <Modal open={historyModalOpen} onClose={() => setHistoryModalOpen(false)}>
         <Box sx={modalStyle}>
           <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00796b', mb: 1, textAlign: 'center' }}>
