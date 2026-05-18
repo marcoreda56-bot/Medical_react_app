@@ -32,22 +32,27 @@ const formatTimeTo12Hour = (timeString) => {
 export const DoctorDashBoard = () => {
   const { currentUser } = useAuth();
   
+  // 0 = الحجوزات الحالية، 1 = إدارة الجدول، 2 = سجل المريض التاريخي
   const [activeTab, setActiveTab] = useState(0);
 
+  // States المواعيد
   const [day, setDay] = useState('');
   const [startTime, setStartTime] = useState('');      
   const [workHours, setWorkHours] = useState('');      
   const [duration, setDuration] = useState(30);        
   const [slots, setSlots] = useState([]);
 
+  // States الحجوزات والروشتة
   const [appointments, setAppointments] = useState([]);
   const [openModal, setOpenModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [diagnosis, setDiagnosis] = useState('');
   const [prescription, setPrescription] = useState('');
 
+  // State للبحث جوه صفحة الـ History
   const [searchTerm, setSearchTerm] = useState('');
 
+  // مودال فرعي لعرض تفاصيل روشتة قديمة من التاريخ المرضي
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedHistoryRecord, setSelectedHistoryRecord] = useState(null);
 
@@ -85,6 +90,67 @@ export const DoctorDashBoard = () => {
     const q = query(collection(db, 'appointments'), where('doctorId', '==', currentUser.uid));
     const querySnapshot = await getDocs(q);
     setAppointments(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  };
+
+  // دالة الموافقة على الميعاد (Approve)
+  const handleApproveAppointment = async (appId) => {
+    try {
+      const appRef = doc(db, 'appointments', appId);
+      await updateDoc(appRef, { status: 'Approved' });
+      Toast.fire({ icon: 'success', title: 'Appointment Approved! 👍' });
+      fetchAppointments();
+    } catch (err) {
+      console.error(err);
+      Toast.fire({ icon: 'error', title: 'Action failed.' });
+    }
+  };
+
+  // دالة إلغاء الميعاد (Cancel)
+  const handleCancelAppointment = async (appId) => {
+    try {
+      const appRef = doc(db, 'appointments', appId);
+      await updateDoc(appRef, { status: 'Cancelled' });
+      Toast.fire({ icon: 'success', title: 'Appointment cancelled.' });
+      fetchAppointments();
+    } catch (err) {
+      console.error(err);
+      Toast.fire({ icon: 'error', title: 'Action failed.' });
+    }
+  };
+
+  const handleOpenCompleteModal = (appointment) => {
+    setSelectedAppointment(appointment);
+    setOpenModal(true);
+  };
+
+  // دالة إتمام الكشف وحفظ الروشتة (Complete)
+  const handleCompleteAppointment = async () => {
+    if (!diagnosis.trim() || !prescription.trim()) {
+      Toast.fire({ icon: 'error', title: 'Please fill in both fields.' });
+      return;
+    }
+
+    try {
+      const appRef = doc(db, 'appointments', selectedAppointment.id);
+      await updateDoc(appRef, {
+        status: 'Completed',
+        medicalRecord: {
+          diagnosis,
+          prescription,
+          date: new Date().toLocaleDateString()
+        }
+      });
+
+      Swal.fire({
+        icon: 'success', title: 'Visit Completed!', text: 'Patient record updated.', confirmButtonColor: '#00796b'
+      });
+
+      setOpenModal(false); setDiagnosis(''); setPrescription('');
+      fetchAppointments();
+    } catch (err) {
+      console.error(err);
+      Toast.fire({ icon: 'error', title: 'Failed to save record.' });
+    }
   };
 
   const handleGenerateShift = async (e) => {
@@ -130,52 +196,7 @@ export const DoctorDashBoard = () => {
     }
   };
 
-  const handleCancelAppointment = async (appId) => {
-    try {
-      const appRef = doc(db, 'appointments', appId);
-      await updateDoc(appRef, { status: 'Cancelled' });
-      Toast.fire({ icon: 'success', title: 'Appointment cancelled.' });
-      fetchAppointments();
-    } catch (err) {
-      console.error(err);
-      Toast.fire({ icon: 'error', title: 'Action failed.' });
-    }
-  };
-
-  const handleOpenCompleteModal = (appointment) => {
-    setSelectedAppointment(appointment);
-    setOpenModal(true);
-  };
-
-  const handleCompleteAppointment = async () => {
-    if (!diagnosis.trim() || !prescription.trim()) {
-      Toast.fire({ icon: 'error', title: 'Please fill in both fields.' });
-      return;
-    }
-
-    try {
-      const appRef = doc(db, 'appointments', selectedAppointment.id);
-      await updateDoc(appRef, {
-        status: 'Completed',
-        medicalRecord: {
-          diagnosis,
-          prescription,
-          date: new Date().toLocaleDateString()
-        }
-      });
-
-      Swal.fire({
-        icon: 'success', title: 'Visit Completed!', text: 'Patient record updated.', confirmButtonColor: '#00796b'
-      });
-
-      setOpenModal(false); setDiagnosis(''); setPrescription('');
-      fetchAppointments();
-    } catch (err) {
-      console.error(err);
-      Toast.fire({ icon: 'error', title: 'Failed to save record.' });
-    }
-  };
-
+  // فلترة الكشوفات المنتهية فقط لعرضها في الـ Patient History مع ميزة البحث الذكي بالاسم
   const completedAppointments = appointments.filter(app => {
     const isCompleted = app.status === 'Completed';
     const matchesSearch = app.patientName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -196,6 +217,7 @@ export const DoctorDashBoard = () => {
         </Typography>
       </Box>
 
+      {/* الـ Tabs الرئيسية */}
       <Paper elevation={2} sx={{ mb: 4, borderRadius: 2 }}>
         <Tabs 
           value={activeTab} 
@@ -212,6 +234,7 @@ export const DoctorDashBoard = () => {
         </Tabs>
       </Paper>
 
+      {/* التبويب الأول: جدول الحجوزات النشطة (Pending & Approved) */}
       {activeTab === 0 && (
         <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#333', mb: 3 }}>
@@ -228,23 +251,46 @@ export const DoctorDashBoard = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {appointments.filter(a => a.status !== 'Completed').length === 0 ? (
-                  <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4, color: '#999' }}>No pending appointments found.</TableCell></TableRow>
-                ) : appointments.filter(a => a.status !== 'Completed').map((app) => (
+                {appointments.filter(a => a.status !== 'Completed' && a.status !== 'Cancelled').length === 0 ? (
+                  <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4, color: '#999' }}>No active appointments found.</TableCell></TableRow>
+                ) : appointments.filter(a => a.status !== 'Completed' && a.status !== 'Cancelled').map((app) => (
                   <TableRow key={app.id} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
                     <TableCell sx={{ fontWeight: '500' }}>{app.patientName}</TableCell>
                     <TableCell>{`${app.day} (${app.time})`}</TableCell>
                     <TableCell>
-                      <Chip label={app.status} color={app.status === 'Cancelled' ? 'error' : 'warning'} size="small" />
+                      <Chip 
+                        label={app.status} 
+                        color={app.status === 'Approved' ? 'success' : 'warning'} 
+                        variant={app.status === 'Approved' ? 'filled' : 'outlined'}
+                        size="small" 
+                      />
                     </TableCell>
                     <TableCell>
-                      {app.status === 'Pending' && (
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Button size="small" variant="contained" color="success" onClick={() => handleOpenCompleteModal(app)}>Complete</Button>
-                          <Button size="small" variant="outlined" color="error" onClick={() => handleCancelAppointment(app.id)}>Cancel</Button>
-                        </Box>
-                      )}
-                      {app.status === 'Cancelled' && <Typography variant="caption" color="error" sx={{ textDecoration: 'line-through' }}>Cancelled</Typography>}
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {/* حالة الـ Pending */}
+                        {app.status === 'Pending' && (
+                          <>
+                            <Button size="small" variant="contained" color="primary" onClick={() => handleApproveAppointment(app.id)}>
+                              Approve
+                            </Button>
+                            <Button size="small" variant="outlined" color="error" onClick={() => handleCancelAppointment(app.id)}>
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+
+                        {/* حالة الـ Approved */}
+                        {app.status === 'Approved' && (
+                          <>
+                            <Button size="small" variant="contained" color="success" onClick={() => handleOpenCompleteModal(app)}>
+                              Complete & Prescribe
+                            </Button>
+                            <Button size="small" variant="outlined" color="error" onClick={() => handleCancelAppointment(app.id)}>
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -254,6 +300,7 @@ export const DoctorDashBoard = () => {
         </Paper>
       )}
 
+      {/* التبويب الثاني: توليد وإدارة المواعيد والجدول */}
       {activeTab === 1 && (
         <Grid container spacing={4}>
           <Grid item xs={12} md={4}>
@@ -305,6 +352,7 @@ export const DoctorDashBoard = () => {
         </Grid>
       )}
 
+      {/* التبويب الثالث: سجلات المرضى والأرشيف الطبي */}
       {activeTab === 2 && (
         <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
@@ -362,6 +410,7 @@ export const DoctorDashBoard = () => {
         </Paper>
       )}
 
+      {/* مودال إنهاء الكشف وكتابة الروشتة */}
       <Modal open={openModal} onClose={() => setOpenModal(false)}>
         <Box sx={modalStyle}>
           <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#00796b', mb: 2 }}>Patient Medical Record</Typography>
@@ -375,25 +424,26 @@ export const DoctorDashBoard = () => {
         </Box>
       </Modal>
 
+      {/* مودال مراجعة السجلات الطبية القديمة */}
       <Modal open={historyModalOpen} onClose={() => setHistoryModalOpen(false)}>
         <Box sx={modalStyle}>
           <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00796b', mb: 1, textAlign: 'center' }}>
             Archived Prescription
           </Typography>
-          <Typography variant="body2" sx={{ mb: 2, textAling: 'center', color: '#666', textAlign: 'center' }}>
+          <Typography variant="body2" sx={{ mb: 2, color: '#666', textAlign: 'center' }}>
             Patient: <strong>{selectedHistoryRecord?.patientName}</strong> <br/>
             Date: {selectedHistoryRecord?.medicalRecord?.date}
           </Typography>
           
           <Box sx={{ mb: 2, p: 2, bgcolor: '#f9f9f9', borderRadius: 2 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Diagnosis (التشخيص السابق):</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Diagnosis:</Typography>
             <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5, whiteSpace: 'pre-line' }}>
               {selectedHistoryRecord?.medicalRecord?.diagnosis}
             </Typography>
           </Box>
 
           <Box sx={{ mb: 3, p: 2, bgcolor: '#e0f2f1', borderRadius: 2, borderLeft: '4px solid #00796b' }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#00796b' }}>Prescription (العلاج المكتوب):</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#00796b' }}>Prescription:</Typography>
             <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5, whiteSpace: 'pre-line', fontWeight: '500' }}>
               {selectedHistoryRecord?.medicalRecord?.prescription}
             </Typography>
