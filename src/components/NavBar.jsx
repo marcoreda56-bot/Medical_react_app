@@ -1,94 +1,63 @@
+import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
-import { Link, useNavigate } from 'react-router-dom';
-import { AppBar, Toolbar, Typography, Button, Box, IconButton } from '@mui/material';
-import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
-import Swal from 'sweetalert2';
+import { useNavigate } from 'react-router-dom';
+import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 
-export const NavBar = () => {
-  const { currentUser, userRole, logout } = useAuth();
+export const Navbar = () => {
+  const { currentUser, userRole, userName, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
       await logout();
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'success',
-        title: 'Logged out successfully',
-        showConfirmButton: false,
-        timer: 2000
-      });
       navigate('/login');
-    } catch (error) {
-      console.error("Logout failed: ", error);
+    } catch (err) {
+      console.error("Logout failed: ", err);
     }
   };
 
+  if (!currentUser) return null; 
+
   return (
-    <AppBar position="static" sx={{ bgcolor: '#00796b' }}>
-      <Toolbar>
-        {/* Logo and Brand Name */}
-        <IconButton edge="start" color="inherit" component={Link} to="/">
-          <LocalHospitalIcon sx={{ mr: 1 }} />
-        </IconButton>
-        <Typography variant="h6" component={Link} to="/" sx={{ flexGrow: 1, textDecoration: 'none', color: 'inherit', fontWeight: 'bold' }}>
-          CarePulse
-        </Typography>
-
-        {/* Navigation Links */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {currentUser && (
-            <Button color="inherit" component={Link} to="/">
-              Home
-            </Button>
-          )}
-
-          {/* Doctor Links */}
-          {currentUser && userRole === 'doctor' && (
-            <Button color="inherit" component={Link} to="/doctor">
-              Doctor Dashboard
-            </Button>
-          )}
-
-          {/* Patient Links */}
-          {currentUser && userRole === 'patient' && (
-            <Button color="inherit" component={Link} to="/patient">
-              My Appointments
-            </Button>
-          )}
-
-          {/* Admin Links */}
-          {currentUser && userRole === 'admin' && (
-            <Button color="inherit" component={Link} to="/admin">
-              Admin Panel
-            </Button>
-          )}
-
-          {/* Right Side: Auth Buttons */}
-          {!currentUser ? (
-            <>
-              <Button color="inherit" component={Link} to="/login">
-                Login
-              </Button>
-              <Button color="inherit" variant="outlined" component={Link} to="/register" sx={{ borderColor: 'white', '&:hover': { borderColor: '#e0f2f1', bgcolor: 'rgba(255,255,255,0.1)' } }}>
-                Register
-              </Button>
-            </>
-          ) : (
-            <Button 
-              variant="contained" 
-              color="error" 
-              onClick={handleLogout}
-              sx={{ fontWeight: 'bold' }}
-            >
-              Logout
-            </Button>
-          )}
+    <AppBar position="static" sx={{ bgcolor: '#00796b', boxShadow: 2 }}>
+      <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
+        
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold', letterSpacing: 1 }}>
+            CarePulse 🩺
+          </Typography>
+          <Typography 
+            variant="caption" 
+            sx={{ 
+              bgcolor: 'rgba(255,255,255,0.2)', 
+              px: 1, 
+              py: 0.5, 
+              borderRadius: 1, 
+              textTransform: 'uppercase', 
+              fontWeight: 'bold' 
+            }}
+          >
+            {userRole} Panel
+          </Typography>
         </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <Typography variant="body1" sx={{ fontWeight: '500' }}>
+            Hello, {userName || "User"} 
+          </Typography>
+          <Button 
+            variant="contained" 
+            color="error" 
+            size="small"
+            startIcon={<ExitToAppIcon />}
+            onClick={handleLogout}
+            sx={{ fontWeight: 'bold', textTransform: 'none' }}
+          >
+            Logout
+          </Button>
+        </Box>
+
       </Toolbar>
     </AppBar>
   );
 };
-
-export default NavBar;

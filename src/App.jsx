@@ -1,16 +1,17 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import Login from './pages/login';
 import Register from './pages/register';
-import { Home } from './pages/Home';
 import RoleRoute from './routes/RoleRoute';
 import { DoctorDashBoard } from './dashboards/DoctorDashBoard';
 import { PatientDashBoard } from './dashboards/PatientDashBoard';
 import { AdminDashBoard } from './dashboards/AdminDashBoard';
 import { useAuth } from './context/AuthContext';
+import { Navbar } from "./components/NavBar.jsx"; // تأكد من مطابقة الحروف مع اسم الملف الفعلي
 
-function App() {
-  const { currentUser, loading } = useAuth();
+function AppContent() {
+  const { currentUser, userRole, loading } = useAuth();
 
   if (loading) {
     return (
@@ -20,17 +21,32 @@ function App() {
     );
   }
 
+  const getRedirectPath = () => {
+    if (userRole === 'doctor') return '/doctor';
+    if (userRole === 'patient') return '/patient';
+    if (userRole === 'admin') return '/admin';
+    return '/login';
+  };
+
   return (
     <>
+      <Navbar /> 
+      
       <Routes>
         <Route
           path="/login"
-          element={currentUser ? <Navigate to="/" replace /> : <Login />}
+          element={currentUser ? <Navigate to={getRedirectPath()} replace /> : <Login />}
         />          
         
-        <Route path='/register' element={<Register />} />
+        <Route 
+          path='/register' 
+          element={currentUser ? <Navigate to={getRedirectPath()} replace /> : <Register />} 
+        />
         
-        <Route path='/' element={<Home />} />
+        <Route 
+          path='/' 
+          element={<Navigate to={currentUser ? getRedirectPath() : "/login"} replace />} 
+        />
 
         <Route path='/doctor' element={
           <RoleRoute allowedRoles={["doctor"]}> 
@@ -49,8 +65,18 @@ function App() {
             <AdminDashBoard />
           </RoleRoute>
         } />
+
+        <Route path="*" element={<Navigate to={currentUser ? getRedirectPath() : "/login"} replace />} />
       </Routes>
     </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
 

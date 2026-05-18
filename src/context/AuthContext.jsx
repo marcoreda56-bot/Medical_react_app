@@ -15,7 +15,7 @@ export const AuthProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null);
   const [userStatus, setUserStatus] = useState(null); 
   const [loading, setLoading] = useState(true);
-
+  const [userName, setUserName] = useState(null);
   const register = async (email, password, name, role) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -51,28 +51,30 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setCurrentUser(user);
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setUserRole(docSnap.data().role);
-          setUserStatus(docSnap.data().status);
-        }
-      } else {
-        setCurrentUser(null);
-        setUserRole(null);
-        setUserStatus(null);
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    setLoading(true);
+    if (user) {
+      setCurrentUser(user);
+      const docRef = doc(db, "users", user.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setUserRole(docSnap.data().role);
+        setUserStatus(docSnap.data().status);
+        setUserName(docSnap.data().name); // جلب الاسم من الـ Firestore هنا 🎯
       }
-      setLoading(false);
-    });
+    } else {
+      setCurrentUser(null);
+      setUserRole(null);
+      setUserStatus(null);
+      setUserName(null);
+    }
+    setLoading(false);
+  });
 
-    return unsubscribe;
-  }, []);
+  return unsubscribe;
+}, []);
 
-  const value = { currentUser, userRole, userStatus, register, login, logout };
-
+const value = { currentUser, userRole, userStatus, userName, register, login, logout };
   return (
     <AuthContext.Provider value={value}>
       {!loading && children}
