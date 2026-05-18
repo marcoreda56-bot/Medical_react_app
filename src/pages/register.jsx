@@ -1,10 +1,10 @@
-import  { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { 
-  Container, TextField, Button, Typography, Box, 
-  RadioGroup, FormControlLabel, Radio, FormLabel, Paper, Avatar 
+  Grid, Box, Paper, Avatar, Typography, TextField, Button, 
+  RadioGroup, FormControlLabel, Radio, FormLabel 
 } from '@mui/material';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 
@@ -18,7 +18,6 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('patient');
 
-  // SweetAlert Toast Configuration for Errors
   const Toast = Swal.mixin({
     toast: true,
     position: 'top-end',
@@ -75,59 +74,137 @@ const Register = () => {
   };
 
   return (
-    <Container component="main" maxWidth="xs">
-      <Paper elevation={6} sx={{ padding: 4, marginTop: 4, borderRadius: 3, textAlign: 'center' }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Avatar sx={{ m: 1, bgcolor: '#00796b', width: 56, height: 56 }}>
-            <LocalHospitalIcon fontSize="large" />
+    <Grid container component="main" sx={{ height: '100vh' }}>
+      
+      <Grid
+        item
+        xs={false}
+        sm={4}
+        md={7}
+        sx={{
+          backgroundImage: 'url(https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&w=1200&q=80)',
+          backgroundRepeat: 'no-repeat',
+          backgroundColor: (t) => t.palette.mode === 'light' ? t.palette.grey[50] : t.palette.grey[900],
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          position: 'relative',
+          display: { xs: 'none', sm: 'flex' },
+          alignItems: 'center',
+          justifyContent: 'center',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0, left: 0, width: '100%', height: '100%',
+            background: 'linear-gradient(135deg, rgba(0, 77, 64, 0.85) 0%, rgba(0, 121, 107, 0.6) 100%)',
+          }
+        }}
+      >
+        <Box sx={{ position: 'relative', color: '#fff', px: 6, textAlign: 'left', maxWidth: '600px' }}>
+          <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', mb: 2, letterSpacing: 1 }}>
+            Join CarePulse
+          </Typography>
+          <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 'normal', lineHeight: 1.6 }}>
+            Begin your journey today. Access integrated healthcare workspaces, coordinate consultations, and manage digital health records instantly.
+          </Typography>
+        </Box>
+      </Grid>
+
+      <Grid 
+        item 
+        xs={12} 
+        sm={8} 
+        md={5} 
+        component={Paper} 
+        elevation={0} 
+        square 
+        sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          bgcolor: '#fafafa',
+          overflowY: 'auto'
+        }}
+      >
+        <Box sx={{ my: 4, mx: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '420px', p: 3, bgcolor: '#fff', borderRadius: 4, boxShadow: '0px 10px 30px rgba(0,0,0,0.04)' }}>
+          
+          <Avatar sx={{ m: 1, bgcolor: '#e0f2f1', width: 60, height: 60, border: '2px solid #00796b' }}>
+            <LocalHospitalIcon sx={{ color: '#00796b', fontSize: 32 }} />
           </Avatar>
-          <Typography component="h1" variant="h4" sx={{ fontWeight: 'bold', color: '#00796b', mb: 1 }}>
-            CarePulse
+          
+          <Typography component="h1" variant="h4" sx={{ fontWeight: '800', color: '#00796b', mt: 1 }}>
+            Create Account
           </Typography>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-            Medical Portal - Create Account
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2, mt: 0.5 }}>
+            Get started by filling your registration info
           </Typography>
 
-          <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+          <Box component="form" onSubmit={handleSubmit} noValidate sx={{ width: '100%' }}>
             <TextField
-              margin="normal" required fullWidth label="Full Name"
+              margin="dense" required fullWidth label="Full Name" autoFocus
               value={name} onChange={(e) => setName(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
             />
             <TextField
-              margin="normal" required fullWidth label="Email Address" type="email"
+              margin="dense" required fullWidth label="Email Address" type="email"
               value={email} onChange={(e) => setEmail(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
             />
             <TextField
-              margin="normal" required fullWidth label="Password" type="password"
+              margin="dense" required fullWidth label="Password" type="password"
               value={password} onChange={(e) => setPassword(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
             />
             <TextField
-              margin="normal" required fullWidth label="Confirm Password" type="password"
+              margin="dense" required fullWidth label="Confirm Password" type="password"
               value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
             />
 
-            <Box sx={{ mt: 2, mb: 1, textAlign: 'left' }}>
-              <FormLabel component="legend" sx={{ color: '#00796b', fontWeight: '500' }}>Portal Access Role</FormLabel>
+            <Box sx={{ mt: 2, mb: 1, p: 1.5, borderRadius: 2, border: '1px solid #e0e0e0', textAlign: 'left' }}>
+              <FormLabel component="legend" sx={{ color: '#00796b', fontWeight: 'bold', fontSize: '0.85rem', mb: 0.5 }}>
+                PORTAL ACCESS ROLE
+              </FormLabel>
               <RadioGroup row value={role} onChange={(e) => setRole(e.target.value)}>
-                <FormControlLabel value="patient" control={<Radio sx={{ color: '#00796b', '&.Mui-checked': { color: '#00796b' } }} />} label="Patient" />
-                <FormControlLabel value="doctor" control={<Radio sx={{ color: '#00796b', '&.Mui-checked': { color: '#00796b' } }} />} label="Doctor" />
+                <FormControlLabel 
+                  value="patient" 
+                  control={<Radio sx={{ color: '#00796b', '&.Mui-checked': { color: '#00796b' } }} />} 
+                  label={<Typography sx={{ fontSize: '0.95rem', fontWeight: 500 }}>Patient</Typography>} 
+                />
+                <FormControlLabel 
+                  value="doctor" 
+                  control={<Radio sx={{ color: '#00796b', '&.Mui-checked': { color: '#00796b' } }} />} 
+                  label={<Typography sx={{ fontSize: '0.95rem', fontWeight: 500 }}>Doctor</Typography>} 
+                />
               </RadioGroup>
             </Box>
 
             <Button
               type="submit" fullWidth variant="contained"
-              sx={{ mt: 2, mb: 2, padding: 1.2, bgcolor: '#00796b', '&:hover': { bgcolor: '#004d40' }, fontWeight: 'bold', borderRadius: 2 }}
+              sx={{ 
+                mt: 3, mb: 2, padding: 1.4, 
+                bgcolor: '#00796b', 
+                '&:hover': { bgcolor: '#004d40', boxShadow: '0px 6px 20px rgba(0, 77, 64, 0.3)' }, 
+                fontWeight: 'bold', borderRadius: 2.5, textTransform: 'none', fontSize: '1rem',
+                boxShadow: '0px 4px 12px rgba(0, 121, 107, 0.2)'
+              }}
             >
               Sign Up
             </Button>
 
-            <Typography variant="body2">
-              Already have an account? <Link to="/login" style={{ color: '#00796b', textDecoration: 'none', fontWeight: 'bold' }}>Sign In</Link>
-            </Typography>
+            <Box sx={{ mt: 2, textAlign: 'center' }}>
+              <Typography variant="body2" color="textSecondary">
+                Already have an account?{' '}
+                <Link to="/login" style={{ color: '#00796b', textDecoration: 'none', fontWeight: 'bold' }}>
+                  Sign In
+                </Link>
+              </Typography>
+            </Box>
+
           </Box>
         </Box>
-      </Paper>
-    </Container>
+      </Grid>
+
+    </Grid>
   );
 };
 
