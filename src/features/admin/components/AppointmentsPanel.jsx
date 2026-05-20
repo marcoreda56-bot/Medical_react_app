@@ -8,6 +8,16 @@ const statusColor = (status) => {
   return 'warning';
 };
 
+const formatDateValue = (value) => {
+  if (!value) return '—';
+  if (typeof value === 'string') return value;
+  if (value?.toDate instanceof Function) return value.toDate().toLocaleString();
+  if (typeof value === 'object' && value.seconds != null && value.nanoseconds != null) {
+    return new Date(value.seconds * 1000).toLocaleString();
+  }
+  return String(value);
+};
+
 export const AppointmentsPanel = ({ appointments, onRefresh, loading, error }) => {
   return (
     <Paper elevation={3} sx={{ p: 3, borderRadius: 3 }}>
@@ -47,7 +57,7 @@ export const AppointmentsPanel = ({ appointments, onRefresh, loading, error }) =
                 <TableRow key={appointment.id} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
                   <TableCell>{appointment.patientName || appointment.patientId || 'Unknown'}</TableCell>
                   <TableCell>{appointment.doctorName || appointment.doctorId || 'Unknown'}</TableCell>
-                  <TableCell>{appointment.day ? `${appointment.day} ${appointment.time || ''}` : appointment.date || '—'}</TableCell>
+                  <TableCell>{appointment.day ? `${appointment.day} ${appointment.time || ''}` : formatDateValue(appointment.date)}</TableCell>
                   <TableCell>
                     <Chip label={appointment.status || 'Pending'} color={statusColor(appointment.status)} size="small" />
                   </TableCell>
