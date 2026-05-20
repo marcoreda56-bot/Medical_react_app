@@ -10,6 +10,7 @@ import {
     updateDoc,
     doc,
     getDoc,
+    deleteDoc,
 } from 'firebase/firestore';
 import {
     Container,
@@ -64,10 +65,9 @@ const formatTimeTo12Hour = (timeString) => {
 
 export const DoctorDashBoard = () => {
     const { currentUser } = useAuth();
-
     const [activeTab, setActiveTab] = useState(0);
 
-    const [day, setDay] = useState('');
+    const [selectedDate, setSelectedDate] = useState('');
     const [startTime, setStartTime] = useState('');
     const [workHours, setWorkHours] = useState('');
     const [duration, setDuration] = useState(30);
@@ -103,24 +103,14 @@ export const DoctorDashBoard = () => {
                     where('doctorId', '==', currentUser.uid)
                 );
                 const slotsSnapshot = await getDocs(slotsQuery);
-                setSlots(
-                    slotsSnapshot.docs.map((doc) => ({
-                        id: doc.id,
-                        ...doc.data(),
-                    }))
-                );
+                setSlots(slotsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
 
                 const appsQuery = query(
                     collection(db, 'appointments'),
                     where('doctorId', '==', currentUser.uid)
                 );
                 const appsSnapshot = await getDocs(appsQuery);
-                setAppointments(
-                    appsSnapshot.docs.map((doc) => ({
-                        id: doc.id,
-                        ...doc.data(),
-                    }))
-                );
+                setAppointments(appsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
             } catch (err) {
                 console.error('Error loading dashboard data: ', err);
             }
@@ -130,34 +120,62 @@ export const DoctorDashBoard = () => {
     }, [currentUser]);
 
     const fetchDoctorSlots = async () => {
-        const q = query(
-            collection(db, 'doctor_slots'),
-            where('doctorId', '==', currentUser.uid)
-        );
+        const q = query(collection(db, 'doctor_slots'), where('doctorId', '==', currentUser.uid));
         const querySnapshot = await getDocs(q);
-        setSlots(
-            querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-        );
+        setSlots(querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     };
 
     const fetchAppointments = async () => {
-        const q = query(
-            collection(db, 'appointments'),
-            where('doctorId', '==', currentUser.uid)
-        );
+        const q = query(collection(db, 'appointments'), where('doctorId', '==', currentUser.uid));
         const querySnapshot = await getDocs(q);
-        setAppointments(
-            querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-        );
+        setAppointments(querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    };
+
+    const clearAllSlots = async () => {
+        const result = await Swal.fire({
+            title: 'Clear Unbooked Slots?',
+            text: "This will permanently delete ALL available slots. Booked slots will remain safe!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, clear available slots!'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const slotsRef = collection(db, 'doctor_slots');
+            const unbookedQuery = query(slotsRef, where('doctorId', '==', currentUser.uid), where('isBooked', '==', false));
+            const querySnapshot = await getDocs(unbookedQuery);
+
+            if (querySnapshot.empty) {
+                Toast.fire({ icon: 'info', title: 'No unbooked slots to clear!' });
+                return;
+            }
+
+            const deletePromises = querySnapshot.docs.map((docSnap) => deleteDoc(doc(db, 'doctor_slots', docSnap.id)));
+            await Promise.all(deletePromises);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Cleared!',
+                text: 'All unbooked slots have been wiped out. Booked slots are untouched!',
+                confirmButtonColor: '#00796b',
+            });
+
+            fetchDoctorSlots();
+        } catch (err) {
+            console.error("Error clearing slots: ", err);
+            Toast.fire({ icon: 'error', title: 'Failed to clear slots.' });
+        }
     };
 
     const handleApproveAppointment = async (appId) => {
         try {
             const appRef = doc(db, 'appointments', appId);
             const appSnap = await getDoc(appRef);
-            const patientId = appSnap.exists()
-                ? appSnap.data().patientId
-                : null;
+            const patientId = appSnap.exists() ? appSnap.data().patientId : null;
 
             await updateDoc(appRef, { status: 'Approved' });
             if (patientId) {
@@ -169,7 +187,7 @@ export const DoctorDashBoard = () => {
                 );
             }
 
-            Toast.fire({ icon: 'success', title: 'Appointment Approved! 👍' });
+            Toast.fire({ icon: 'success', title: 'Appointment Approved! ' });
             fetchAppointments();
         } catch (err) {
             console.error(err);
@@ -181,24 +199,38 @@ export const DoctorDashBoard = () => {
         try {
             const appRef = doc(db, 'appointments', appId);
             const appSnap = await getDoc(appRef);
-            const patientId = appSnap.exists()
-                ? appSnap.data().patientId
-                : null;
+            
+            if (!appSnap.exists()) {
+                Toast.fire({ icon: 'error', title: 'Appointment not found.' });
+                return;
+            }
+
+            const appData = appSnap.data();
+            const patientId = appData.patientId;
+            const slotId = appData.slotId; 
 
             await updateDoc(appRef, { status: 'Cancelled' });
+
+            if (slotId) {
+                const slotRef = doc(db, 'doctor_slots', slotId);
+                await updateDoc(slotRef, { isBooked: false });
+            }
+
             if (patientId) {
                 await sendNotification(
                     patientId,
                     'Appointment cancelled',
-                    'Your appointment was cancelled by the doctor.',
+                    'Your appointment was cancelled by the doctor and the time slot is now released.',
                     { appointmentId: appId }
                 );
             }
 
-            Toast.fire({ icon: 'success', title: 'Appointment cancelled.' });
+            Toast.fire({ icon: 'success', title: 'Appointment cancelled & Slot released! 🔓' });
+            
             fetchAppointments();
+            fetchDoctorSlots(); 
         } catch (err) {
-            console.error(err);
+            console.error("Error cancelling appointment: ", err);
             Toast.fire({ icon: 'error', title: 'Action failed.' });
         }
     };
@@ -225,7 +257,12 @@ export const DoctorDashBoard = () => {
                 },
             });
 
-            // Notify patient about completed visit and available prescription
+            const slotId = selectedAppointment.slotId;
+            if (slotId) {
+                const slotRef = doc(db, 'doctor_slots', slotId);
+                await deleteDoc(slotRef); 
+            }
+
             if (selectedAppointment?.patientId) {
                 await sendNotification(
                     selectedAppointment.patientId,
@@ -238,7 +275,7 @@ export const DoctorDashBoard = () => {
             Swal.fire({
                 icon: 'success',
                 title: 'Visit Completed!',
-                text: 'Patient record updated.',
+                text: 'Patient record updated and schedule cleared.',
                 confirmButtonColor: '#00796b',
             });
 
@@ -246,6 +283,7 @@ export const DoctorDashBoard = () => {
             setDiagnosis('');
             setPrescription('');
             fetchAppointments();
+            fetchDoctorSlots();
         } catch (err) {
             console.error(err);
             Toast.fire({ icon: 'error', title: 'Failed to save record.' });
@@ -254,16 +292,47 @@ export const DoctorDashBoard = () => {
 
     const handleGenerateShift = async (e) => {
         e.preventDefault();
-        if (!day || !startTime || !workHours) {
+        if (!selectedDate || !startTime || !workHours) {
             Toast.fire({ icon: 'error', title: 'Please fill all fields!' });
             return;
         }
 
-        const [startH, startM] = startTime.split(':').map(Number);
-        let startTotalMinutes = startH * 60 + startM;
-        const endTotalMinutes = startTotalMinutes + parseInt(workHours) * 60;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); 
+        const inputDate = new Date(selectedDate);
+        inputDate.setHours(0, 0, 0, 0);
+
+        if (inputDate < today) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Invalid Date!',
+                text: 'You cannot generate slots for a past date. Please select today or a future date.',
+                confirmButtonColor: '#00796b'
+            });
+            return; 
+        }
 
         try {
+            const checkQuery = query(collection(db, 'doctor_slots'), where('doctorId', '==', currentUser.uid), where('date', '==', selectedDate));
+            const checkSnapshot = await getDocs(checkQuery);
+            
+            if (!checkSnapshot.empty) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Slots Already Exist!',
+                    text: 'You have already generated slots for this specific date. Choose another date.',
+                    confirmButtonColor: '#00796b'
+                });
+                return; 
+            }
+
+            const options = { weekday: 'long' };
+            const dayName = new Date(selectedDate).toLocaleDateString('en-US', options);
+
+            const [startH, startM] = startTime.split(':').map(Number);
+            let startTotalMinutes = startH * 60 + startM;
+            const endTotalMinutes = startTotalMinutes + parseInt(workHours) * 60;
+
             while (startTotalMinutes + duration <= endTotalMinutes) {
                 const currentH = Math.floor(startTotalMinutes / 60) % 24;
                 const currentM = startTotalMinutes % 60;
@@ -278,7 +347,8 @@ export const DoctorDashBoard = () => {
 
                 await addDoc(collection(db, 'doctor_slots'), {
                     doctorId: currentUser.uid,
-                    day,
+                    date: selectedDate,    
+                    day: dayName,          
                     time: finalTimeFormat,
                     isBooked: false,
                 });
@@ -286,51 +356,34 @@ export const DoctorDashBoard = () => {
                 startTotalMinutes += duration;
             }
 
-            Toast.fire({
-                icon: 'success',
-                title: 'Shift and slots generated successfully!',
-            });
-            setDay('');
+            Toast.fire({ icon: 'success', title: 'Shift slots generated successfully for ' + selectedDate });
+            setSelectedDate('');
             setStartTime('');
             setWorkHours('');
             fetchDoctorSlots();
         } catch (err) {
             console.error(err);
-            Toast.fire({
-                icon: 'error',
-                title: 'Failed to generate shift slots.',
-            });
+            Toast.fire({ icon: 'error', title: 'Failed to generate shift slots.' });
         }
     };
 
     const completedAppointments = appointments.filter((app) => {
         const isCompleted = app.status === 'Completed';
-        const matchesSearch = app.patientName
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase());
+        const matchesSearch = (app.patientName || app.name || 'Patient').toLowerCase().includes(searchTerm.toLowerCase());
         return isCompleted && matchesSearch;
     });
 
     const groupedSlots = slots.reduce((acc, slot) => {
-        if (!acc[slot.day]) acc[slot.day] = [];
-        acc[slot.day].push(slot);
+        const key = `${slot.day} (${slot.date})`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(slot);
         return acc;
     }, {});
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Box
-                sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    mb: 3,
-                }}
-            >
-                <Typography
-                    variant="h4"
-                    sx={{ fontWeight: 'bold', color: '#00796b' }}
-                >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#00796b' }}>
                     Doctor Workspace
                 </Typography>
             </Box>
@@ -343,200 +396,67 @@ export const DoctorDashBoard = () => {
                     textColor="primary"
                     variant="fullWidth"
                     sx={{
-                        '& .MuiTabs-indicator': {
-                            bgcolor: '#00796b',
-                            height: 3,
-                        },
-                        '& .Mui-selected': {
-                            color: '#00796b !important',
-                            fontWeight: 'bold',
-                        },
+                        '& .MuiTabs-indicator': { bgcolor: '#00796b', height: 3 },
+                        '& .Mui-selected': { color: '#00796b !important', fontWeight: 'bold' },
                     }}
                 >
-                    <Tab
-                        icon={<AssignmentIcon />}
-                        iconPosition="start"
-                        label="Patient Appointments"
-                    />
-                    <Tab
-                        icon={<CalendarMonthIcon />}
-                        iconPosition="start"
-                        label="Manage Work Schedule"
-                    />
-                    <Tab
-                        icon={<HistoryEduIcon />}
-                        iconPosition="start"
-                        label="Patients Medical History"
-                    />
+                    <Tab icon={<AssignmentIcon />} iconPosition="start" label="Patient Appointments" />
+                    <Tab icon={<CalendarMonthIcon />} iconPosition="start" label="Manage Work Schedule" />
+                    <Tab icon={<HistoryEduIcon />} iconPosition="start" label="Patients Medical History" />
                 </Tabs>
             </Paper>
 
             {activeTab === 0 && (
                 <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-                    <Typography
-                        variant="h5"
-                        sx={{ fontWeight: 'bold', color: '#333', mb: 3 }}
-                    >
-                        Current & Pending Bookings
+                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#333', mb: 3 }}>
+                        Current & Recent Bookings
                     </Typography>
                     <TableContainer>
                         <Table>
                             <TableHead sx={{ bgcolor: '#f4f7f6' }}>
                                 <TableRow>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Patient Name
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Day & Time
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Status
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Actions
-                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Patient Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Day & Time</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Status</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {appointments.filter(
-                                    (a) =>
-                                        a.status !== 'Completed' &&
-                                        a.status !== 'Cancelled'
-                                ).length === 0 ? (
+                                {appointments.filter((a) => a.status !== 'Completed' && a.status !== 'Cancelled').length === 0 ? (
                                     <TableRow>
-                                        <TableCell
-                                            colSpan={4}
-                                            align="center"
-                                            sx={{ py: 4, color: '#999' }}
-                                        >
+                                        <TableCell colSpan={4} align="center" sx={{ py: 4, color: '#999' }}>
                                             No active appointments found.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     appointments
-                                        .filter(
-                                            (a) =>
-                                                a.status !== 'Completed' &&
-                                                a.status !== 'Cancelled'
-                                        )
+                                        .filter((a) => a.status !== 'Completed' && a.status !== 'Cancelled')
                                         .map((app) => (
-                                            <TableRow
-                                                key={app.id}
-                                                sx={{
-                                                    '&:hover': {
-                                                        bgcolor: '#fafafa',
-                                                    },
-                                                }}
-                                            >
-                                                <TableCell
-                                                    sx={{ fontWeight: '500' }}
-                                                >
-                                                    {app.patientName}
+                                            <TableRow key={app.id} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
+                                                <TableCell sx={{ fontWeight: '500' }}>
+                                                    {app.patientName || app.name || "Unknown Patient"}
                                                 </TableCell>
                                                 <TableCell>{`${app.day} (${app.time})`}</TableCell>
                                                 <TableCell>
                                                     <Chip
                                                         label={app.status}
-                                                        color={
-                                                            app.status ===
-                                                            'Approved'
-                                                                ? 'success'
-                                                                : 'warning'
-                                                        }
-                                                        variant={
-                                                            app.status ===
-                                                            'Approved'
-                                                                ? 'filled'
-                                                                : 'outlined'
-                                                        }
+                                                        color={app.status === 'Approved' ? 'success' : 'warning'}
+                                                        variant={app.status === 'Pending' ? 'outlined' : 'filled'}
                                                         size="small"
                                                     />
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Box
-                                                        sx={{
-                                                            display: 'flex',
-                                                            gap: 1,
-                                                        }}
-                                                    >
-                                                        {app.status ===
-                                                            'Pending' && (
+                                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                                        {app.status === 'Pending' && (
                                                             <>
-                                                                <Button
-                                                                    size="small"
-                                                                    variant="contained"
-                                                                    color="primary"
-                                                                    onClick={() =>
-                                                                        handleApproveAppointment(
-                                                                            app.id
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    Approve
-                                                                </Button>
-                                                                <Button
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    color="error"
-                                                                    onClick={() =>
-                                                                        handleCancelAppointment(
-                                                                            app.id
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    Cancel
-                                                                </Button>
+                                                                <Button size="small" variant="contained" color="primary" onClick={() => handleApproveAppointment(app.id)}>Approve</Button>
+                                                                <Button size="small" variant="outlined" color="error" onClick={() => handleCancelAppointment(app.id)}>Cancel</Button>
                                                             </>
                                                         )}
-
-                                                        {app.status ===
-                                                            'Approved' && (
+                                                        {app.status === 'Approved' && (
                                                             <>
-                                                                <Button
-                                                                    size="small"
-                                                                    variant="contained"
-                                                                    color="success"
-                                                                    onClick={() =>
-                                                                        handleOpenCompleteModal(
-                                                                            app
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    Complete &
-                                                                    Prescribe
-                                                                </Button>
-                                                                <Button
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    color="error"
-                                                                    onClick={() =>
-                                                                        handleCancelAppointment(
-                                                                            app.id
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    Cancel
-                                                                </Button>
+                                                                <Button size="small" variant="contained" color="success" onClick={() => handleOpenCompleteModal(app)}>Complete & Prescribe</Button>
+                                                                <Button size="small" variant="outlined" color="error" onClick={() => handleCancelAppointment(app.id)}>Cancel</Button>
                                                             </>
                                                         )}
                                                     </Box>
@@ -554,39 +474,33 @@ export const DoctorDashBoard = () => {
                 <Grid container spacing={4}>
                     <Grid item xs={12} md={4}>
                         <Paper elevation={3} sx={{ p: 3, borderRadius: 3 }}>
-                            <Typography
-                                variant="h6"
-                                sx={{
-                                    fontWeight: 'bold',
-                                    color: '#00796b',
-                                    mb: 2,
-                                }}
-                            >
+                            <Button variant="contained" color="error" fullWidth sx={{ mb: 3, fontWeight: 'bold' }} onClick={clearAllSlots}>
+                                🛑 Wipe Free Slots Only
+                            </Button>
+
+                            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#00796b', mb: 2 }}>
                                 Setup Working Shift
                             </Typography>
-                            <Box component="form" noValidate>
-                                <FormControl fullWidth margin="normal" required>
-                                    <InputLabel>Select Day</InputLabel>
-                                    <Select
-                                        value={day}
-                                        label="Select Day"
-                                        onChange={(e) => setDay(e.target.value)}
-                                    >
-                                        {[
-                                            'Saturday',
-                                            'Sunday',
-                                            'Monday',
-                                            'Tuesday',
-                                            'Wednesday',
-                                            'Thursday',
-                                            'Friday',
-                                        ].map((d) => (
-                                            <MenuItem key={d} value={d}>
-                                                {d}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
+                            <Box component="form" onSubmit={handleGenerateShift} noValidate>
+                                <TextField
+                                    label="Select Specific Date"
+                                    type="date"
+                                    fullWidth
+                                    margin="normal"
+                                    required
+                                    InputLabelProps={{ shrink: true }}
+                                    inputProps={{ 
+                                        min: new Date().toISOString().split('T')[0],
+                                        max: "2030-12-31" 
+                                    }}
+                                    value={selectedDate}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        const year = val.split('-')[0];
+                                        if (year && year.length > 4) return; 
+                                        setSelectedDate(val);
+                                    }}
+                                />
                                 <TextField
                                     label="Start Time"
                                     type="time"
@@ -595,147 +509,53 @@ export const DoctorDashBoard = () => {
                                     required
                                     InputLabelProps={{ shrink: true }}
                                     value={startTime}
-                                    onChange={(e) =>
-                                        setStartTime(e.target.value)
-                                    }
+                                    onChange={(e) => setStartTime(e.target.value)}
                                 />
                                 <FormControl fullWidth margin="normal" required>
                                     <InputLabel>Total Work Hours</InputLabel>
-                                    <Select
-                                        value={workHours}
-                                        label="Total Work Hours"
-                                        onChange={(e) =>
-                                            setWorkHours(e.target.value)
-                                        }
-                                    >
+                                    <Select value={workHours} label="Total Work Hours" onChange={(e) => setWorkHours(e.target.value)}>
                                         {[...Array(24)].map((_, i) => (
-                                            <MenuItem key={i + 1} value={i + 1}>
-                                                {i + 1} Hours
-                                            </MenuItem>
+                                            <MenuItem key={i + 1} value={i + 1}>{i + 1} Hours</MenuItem>
                                         ))}
                                     </Select>
                                 </FormControl>
                                 <FormControl fullWidth margin="normal" required>
                                     <InputLabel>Slot Duration</InputLabel>
-                                    <Select
-                                        value={duration}
-                                        label="Slot Duration"
-                                        onChange={(e) =>
-                                            setDuration(Number(e.target.value))
-                                        }
-                                    >
+                                    <Select value={duration} label="Slot Duration" onChange={(e) => setDuration(Number(e.target.value))}>
                                         {[15, 20, 30, 45, 60].map((m) => (
-                                            <MenuItem key={m} value={m}>
-                                                {m} Minutes
-                                            </MenuItem>
+                                            <MenuItem key={m} value={m}>{m} Minutes</MenuItem>
                                         ))}
                                     </Select>
                                 </FormControl>
-                                <Button
-                                    type="button"
-                                    onClick={handleGenerateShift}
-                                    fullWidth
-                                    variant="contained"
-                                    sx={{
-                                        mt: 2,
-                                        py: 1.2,
-                                        bgcolor: '#00796b',
-                                        '&:hover': { bgcolor: '#004d40' },
-                                        fontWeight: 'bold',
-                                        borderRadius: 2,
-                                    }}
-                                >
+                                <Button type="submit" fullWidth variant="contained" sx={{ mt: 2, py: 1.2, bgcolor: '#00796b', '&:hover': { bgcolor: '#004d40' }, fontWeight: 'bold', borderRadius: 2 }}>
                                     Generate Shift Slots
                                 </Button>
                             </Box>
                         </Paper>
                     </Grid>
                     <Grid item xs={12} md={8}>
-                        <Paper
-                            elevation={3}
-                            sx={{ p: 4, borderRadius: 3, minHeight: '400px' }}
-                        >
-                            <Typography
-                                variant="h6"
-                                sx={{
-                                    fontWeight: 'bold',
-                                    color: '#333',
-                                    mb: 3,
-                                }}
-                            >
-                                Your Weekly Schedule (Grouped by Day)
+                        <Paper elevation={3} sx={{ p: 4, borderRadius: 3, minHeight: '400px' }}>
+                            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#333', mb: 3 }}>
+                                Your Weekly Schedule (Grouped by Date)
                             </Typography>
                             {slots.length === 0 ? (
-                                <Box
-                                    sx={{
-                                        textAlign: 'center',
-                                        mt: 6,
-                                        color: '#999',
-                                    }}
-                                >
-                                    <Typography variant="body1">
-                                        No slots active on your schedule yet.
-                                    </Typography>
+                                <Box sx={{ textAlign: 'center', mt: 6, color: '#999' }}>
+                                    <Typography variant="body1">No slots active on your schedule yet.</Typography>
                                 </Box>
                             ) : (
-                                Object.entries(groupedSlots).map(
-                                    ([dayName, daySlots]) => (
-                                        <Box
-                                            key={dayName}
-                                            sx={{
-                                                mb: 4,
-                                                p: 2.5,
-                                                bgcolor: '#fcfdfe',
-                                                borderRadius: 2,
-                                                borderLeft: '5px solid #00796b',
-                                            }}
-                                        >
-                                            <Typography
-                                                variant="subtitle1"
-                                                sx={{
-                                                    fontWeight: 'bold',
-                                                    color: '#00796b',
-                                                    mb: 1.5,
-                                                }}
-                                            >
-                                                📅 {dayName}{' '}
-                                                <Chip
-                                                    label={`${daySlots.length} Slots`}
-                                                    size="small"
-                                                    sx={{
-                                                        bgcolor: '#e0f2f1',
-                                                        color: '#00796b',
-                                                        fontWeight: 'bold',
-                                                    }}
-                                                />
-                                            </Typography>
-                                            <Box
-                                                sx={{
-                                                    display: 'flex',
-                                                    flexWrap: 'wrap',
-                                                    gap: 1.5,
-                                                }}
-                                            >
-                                                {daySlots.map((s) => (
-                                                    <Chip
-                                                        key={s.id}
-                                                        label={s.time}
-                                                        variant={
-                                                            s.isBooked
-                                                                ? 'filled'
-                                                                : 'outlined'
-                                                        }
-                                                        disabled={s.isBooked}
-                                                        sx={{
-                                                            fontWeight: '500',
-                                                            borderRadius: '6px',
-                                                        }}
-                                                    />
-                                                ))}
-                                            </Box>
+                                Object.entries(groupedSlots).map(([dateLabel, daySlots]) => (
+                                    <Box key={dateLabel} sx={{ mb: 4, p: 2.5, bgcolor: '#fcfdfe', borderRadius: 2, borderLeft: '5px solid #00796b' }}>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#00796b', mb: 1.5 }}>
+                                            📅 {dateLabel}{' '}
+                                            <Chip label={`${daySlots.length} Slots`} size="small" sx={{ bgcolor: '#e0f2f1', color: '#00796b', fontWeight: 'bold' }} />
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                                            {daySlots.map((s) => (
+                                                <Chip key={s.id} label={s.time} color={s.isBooked ? 'error' : 'success'} variant={s.isBooked ? 'filled' : 'outlined'} />
+                                            ))}
                                         </Box>
-                                    )
-                                )
+                                    </Box>
+                                ))
                             )}
                         </Paper>
                     </Grid>
@@ -744,126 +564,36 @@ export const DoctorDashBoard = () => {
 
             {activeTab === 2 && (
                 <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            mb: 3,
-                            flexWrap: 'wrap',
-                            gap: 2,
-                        }}
-                    >
-                        <Typography
-                            variant="h5"
-                            sx={{ fontWeight: 'bold', color: '#333' }}
-                        >
-                            Patients Medical Records History
-                        </Typography>
-                        <TextField
-                            label="Search Patient Name..."
-                            variant="outlined"
-                            size="small"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            sx={{ width: 280 }}
-                        />
-                    </Box>
-
+                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#333', mb: 3 }}>
+                        Patients Medical History Search
+                    </Typography>
+                    <TextField label="Search Patient Name..." fullWidth margin="normal" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} sx={{ mb: 3 }} />
                     <TableContainer>
                         <Table>
                             <TableHead sx={{ bgcolor: '#f4f7f6' }}>
                                 <TableRow>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Patient Name
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Visit Date
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Diagnosis (التشخيص)
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Action
-                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Patient Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Visit Date</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Diagnosis</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>History Record</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {completedAppointments.length === 0 ? (
                                     <TableRow>
-                                        <TableCell
-                                            colSpan={4}
-                                            align="center"
-                                            sx={{ py: 4, color: '#999' }}
-                                        >
-                                            No matching records found in patient
-                                            history.
+                                        <TableCell colSpan={4} align="center" sx={{ py: 4, color: '#999' }}>
+                                            No past records matching the search.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     completedAppointments.map((app) => (
-                                        <TableRow
-                                            key={app.id}
-                                            sx={{
-                                                '&:hover': {
-                                                    bgcolor: '#fafafa',
-                                                },
-                                            }}
-                                        >
-                                            <TableCell
-                                                sx={{ fontWeight: 'bold' }}
-                                            >
-                                                {app.patientName}
-                                            </TableCell>
+                                        <TableRow key={app.id} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
+                                            <TableCell sx={{ fontWeight: '500' }}>{app.patientName || app.name || "Patient"}</TableCell>
+                                            <TableCell>{app.medicalRecord?.date || app.day}</TableCell>
+                                            <TableCell>{app.medicalRecord?.diagnosis}</TableCell>
                                             <TableCell>
-                                                {app.medicalRecord?.date ||
-                                                    app.day}
-                                            </TableCell>
-                                            <TableCell
-                                                sx={{
-                                                    maxWidth: '250px',
-                                                    whiteSpace: 'nowrap',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                }}
-                                            >
-                                                {app.medicalRecord?.diagnosis}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Button
-                                                    size="small"
-                                                    variant="outlined"
-                                                    color="primary"
-                                                    onClick={() => {
-                                                        setSelectedHistoryRecord(
-                                                            app
-                                                        );
-                                                        setHistoryModalOpen(
-                                                            true
-                                                        );
-                                                    }}
-                                                >
-                                                    Open Full Record 📄
+                                                <Button size="small" variant="contained" sx={{ bgcolor: '#00796b' }} onClick={() => { setSelectedHistoryRecord(app.medicalRecord); setHistoryModalOpen(true); }}>
+                                                    View Details 📄
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
@@ -875,147 +605,32 @@ export const DoctorDashBoard = () => {
                 </Paper>
             )}
 
+            {/* Modal: Complete Visit */}
             <Modal open={openModal} onClose={() => setOpenModal(false)}>
                 <Box sx={modalStyle}>
-                    <Typography
-                        variant="h6"
-                        sx={{ fontWeight: 'bold', color: '#00796b', mb: 2 }}
-                    >
-                        Patient Medical Record
+                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00796b', mb: 2 }}>
+                        Complete Visit & Prescribe
                     </Typography>
-                    <Typography variant="body2" sx={{ mb: 2 }}>
-                        Patient:{' '}
-                        <strong>{selectedAppointment?.patientName}</strong>
-                    </Typography>
-                    <TextField
-                        label="Diagnosis"
-                        fullWidth
-                        multiline
-                        rows={3}
-                        margin="normal"
-                        value={diagnosis}
-                        onChange={(e) => setDiagnosis(e.target.value)}
-                    />
-                    <TextField
-                        label="Prescription & Notes "
-                        fullWidth
-                        multiline
-                        rows={4}
-                        margin="normal"
-                        value={prescription}
-                        onChange={(e) => setPrescription(e.target.value)}
-                    />
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            justifyContent: 'end',
-                            gap: 2,
-                            mt: 3,
-                        }}
-                    >
-                        <Button
-                            variant="text"
-                            onClick={() => setOpenModal(false)}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="contained"
-                            color="success"
-                            onClick={handleCompleteAppointment}
-                        >
-                            Save & Complete Visit
-                        </Button>
+                    <TextField label="Diagnosis" fullWidth multiline rows={2} margin="normal" value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} />
+                    <TextField label="Prescription & Notes" fullWidth multiline rows={4} margin="normal" value={prescription} onChange={(e) => setPrescription(e.target.value)} />
+                    <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+                        <Button fullWidth variant="contained" sx={{ bgcolor: '#00796b', '&:hover': { bgcolor: '#004d40' } }} onClick={handleCompleteAppointment}>Save & Close</Button>
+                        <Button fullWidth variant="outlined" color="error" onClick={() => setOpenModal(false)}>Cancel</Button>
                     </Box>
                 </Box>
             </Modal>
 
-            <Modal
-                open={historyModalOpen}
-                onClose={() => setHistoryModalOpen(false)}
-            >
+            <Modal open={historyModalOpen} onClose={() => setHistoryModalOpen(false)}>
                 <Box sx={modalStyle}>
-                    <Typography
-                        variant="h5"
-                        sx={{
-                            fontWeight: 'bold',
-                            color: '#00796b',
-                            mb: 1,
-                            textAlign: 'center',
-                        }}
-                    >
-                        Archived Prescription
-                    </Typography>
-                    <Typography
-                        variant="body2"
-                        sx={{ mb: 2, color: '#666', textAlign: 'center' }}
-                    >
-                        Patient:{' '}
-                        <strong>{selectedHistoryRecord?.patientName}</strong>{' '}
-                        <br />
-                        Date: {selectedHistoryRecord?.medicalRecord?.date}
-                    </Typography>
-
-                    <Box
-                        sx={{
-                            mb: 2,
-                            p: 2,
-                            bgcolor: '#f9f9f9',
-                            borderRadius: 2,
-                        }}
-                    >
-                        <Typography
-                            variant="subtitle2"
-                            sx={{ fontWeight: 'bold' }}
-                        >
-                            Diagnosis:
-                        </Typography>
-                        <Typography
-                            variant="body2"
-                            color="textSecondary"
-                            sx={{ mt: 0.5, whiteSpace: 'pre-line' }}
-                        >
-                            {selectedHistoryRecord?.medicalRecord?.diagnosis}
-                        </Typography>
-                    </Box>
-
-                    <Box
-                        sx={{
-                            mb: 3,
-                            p: 2,
-                            bgcolor: '#e0f2f1',
-                            borderRadius: 2,
-                            borderLeft: '4px solid #00796b',
-                        }}
-                    >
-                        <Typography
-                            variant="subtitle2"
-                            sx={{ fontWeight: 'bold', color: '#00796b' }}
-                        >
-                            Prescription:
-                        </Typography>
-                        <Typography
-                            variant="body2"
-                            color="textSecondary"
-                            sx={{
-                                mt: 0.5,
-                                whiteSpace: 'pre-line',
-                                fontWeight: '500',
-                            }}
-                        >
-                            {selectedHistoryRecord?.medicalRecord?.prescription}
-                        </Typography>
-                    </Box>
-
-                    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                        <Button
-                            variant="contained"
-                            sx={{ bgcolor: '#00796b' }}
-                            onClick={() => setHistoryModalOpen(false)}
-                        >
-                            Close Record
-                        </Button>
-                    </Box>
+                    {selectedHistoryRecord && (
+                        <>
+                            <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00796b', mb: 2 }}>Medical History Details</Typography>
+                            <Typography variant="body1" sx={{ mb: 1 }}><strong>Date:</strong> {selectedHistoryRecord.date}</Typography>
+                            <Typography variant="body1" sx={{ mb: 1 }}><strong>Diagnosis:</strong> {selectedHistoryRecord.diagnosis}</Typography>
+                            <Typography variant="body1" sx={{ mb: 3 }}><strong>Prescription:</strong> {selectedHistoryRecord.prescription}</Typography>
+                            <Button fullWidth variant="outlined" sx={{ borderColor: '#00796b', color: '#00796b' }} onClick={() => setHistoryModalOpen(false)}>Close</Button>
+                        </>
+                    )}
                 </Box>
             </Modal>
         </Container>

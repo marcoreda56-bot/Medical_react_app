@@ -167,6 +167,7 @@ export const PatientDashBoard = () => {
                     doctorName: doctor.name,
                     day: slot.day,
                     time: slot.time,
+                    slotId: slot.id, // الحقل السحري لربط الإلغاء
                     status: 'Pending',
                 });
 
@@ -175,7 +176,6 @@ export const PatientDashBoard = () => {
                 const slotRef = doc(db, 'doctor_slots', slot.id);
                 await updateDoc(slotRef, { isBooked: true });
 
-                // Notify the doctor about the new booking
                 await sendNotification(
                     doctor.id,
                     'New appointment request',
@@ -183,7 +183,6 @@ export const PatientDashBoard = () => {
                     { appointmentId, from: currentUser.uid }
                 );
 
-                // Notify patient as confirmation (in-app)
                 await sendNotification(
                     currentUser.uid,
                     'Booking created',
@@ -211,25 +210,11 @@ export const PatientDashBoard = () => {
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Box
-                sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    mb: 3,
-                }}
-            >
-                <Typography
-                    variant="h4"
-                    sx={{ fontWeight: 'bold', color: '#00796b' }}
-                >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#00796b' }}>
                     Patient Center
                 </Typography>
-                <Typography
-                    variant="body1"
-                    color="textSecondary"
-                    sx={{ fontWeight: '500' }}
-                >
+                <Typography variant="body1" color="textSecondary" sx={{ fontWeight: '500' }}>
                     Stay healthy! 🛡️
                 </Typography>
             </Box>
@@ -242,35 +227,18 @@ export const PatientDashBoard = () => {
                     textColor="primary"
                     variant="fullWidth"
                     sx={{
-                        '& .MuiTabs-indicator': {
-                            bgcolor: '#00796b',
-                            height: 3,
-                        },
-                        '& .Mui-selected': {
-                            color: '#00796b !important',
-                            fontWeight: 'bold',
-                        },
+                        '& .MuiTabs-indicator': { bgcolor: '#00796b', height: 3 },
+                        '& .Mui-selected': { color: '#00796b !important', fontWeight: 'bold' },
                     }}
                 >
-                    <Tab
-                        icon={<LocalHospitalIcon />}
-                        iconPosition="start"
-                        label="Book An Appointment"
-                    />
-                    <Tab
-                        icon={<EventNoteIcon />}
-                        iconPosition="start"
-                        label="My Bookings & Records"
-                    />
+                    <Tab icon={<LocalHospitalIcon />} iconPosition="start" label="Book An Appointment" />
+                    <Tab icon={<EventNoteIcon />} iconPosition="start" label="My Bookings & Records" />
                 </Tabs>
             </Paper>
 
             {activeTab === 0 && (
                 <Box>
-                    <Typography
-                        variant="h5"
-                        sx={{ fontWeight: 'bold', mb: 3, color: '#333' }}
-                    >
+                    <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 3, color: '#333' }}>
                         Available Doctors & Specialists
                     </Typography>
 
@@ -281,222 +249,86 @@ export const PatientDashBoard = () => {
                     ) : (
                         <Grid container spacing={3}>
                             {doctors.map((docItem) => {
-                                const doctorSlots = allSlots.filter(
-                                    (s) => s.doctorId === docItem.id
-                                );
-                                const uniqueDays = [
-                                    ...new Set(doctorSlots.map((s) => s.day)),
-                                ];
-                                const currentSelectedDay =
-                                    selectedDayForDoc[docItem.id] ||
-                                    uniqueDays[0];
-                                const slotsForSelectedDay = doctorSlots.filter(
-                                    (s) => s.day === currentSelectedDay
-                                );
+                                const doctorSlots = allSlots.filter((s) => s.doctorId === docItem.id);
+                                const uniqueDays = [...new Set(doctorSlots.map((s) => s.day))];
+                                const currentSelectedDay = selectedDayForDoc[docItem.id] || uniqueDays[0];
+                                const slotsForSelectedDay = doctorSlots.filter((s) => s.day === currentSelectedDay);
 
                                 return (
                                     <Grid item xs={12} md={6} key={docItem.id}>
-                                        <Card
-                                            elevation={3}
-                                            sx={{
-                                                borderRadius: 3,
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                minHeight: '320px',
-                                            }}
-                                        >
+                                        <Card elevation={3} sx={{ borderRadius: 3, display: 'flex', flexDirection: 'column', minHeight: '320px' }}>
                                             <CardContent>
-                                                <Box
-                                                    sx={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: 2,
-                                                        mb: 3,
-                                                    }}
-                                                >
-                                                    <Avatar
-                                                        sx={{
-                                                            bgcolor: '#00796b',
-                                                            width: 56,
-                                                            height: 56,
-                                                        }}
-                                                    >
-                                                        {docItem.name
-                                                            .charAt(0)
-                                                            .toUpperCase()}
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                                                    <Avatar sx={{ bgcolor: '#00796b', width: 56, height: 56 }}>
+                                                        {docItem.name.charAt(0).toUpperCase()}
                                                     </Avatar>
                                                     <Box>
-                                                        <Typography
-                                                            variant="h6"
-                                                            sx={{
-                                                                fontWeight:
-                                                                    'bold',
-                                                            }}
-                                                        >
+                                                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
                                                             Dr. {docItem.name}
                                                         </Typography>
-                                                        <Typography
-                                                            variant="caption"
-                                                            color="textSecondary"
-                                                        >
+                                                        <Typography variant="caption" color="textSecondary">
                                                             Specialist
                                                         </Typography>
                                                     </Box>
                                                 </Box>
 
-                                                <Typography
-                                                    variant="subtitle2"
-                                                    sx={{
-                                                        fontWeight: 'bold',
-                                                        color: '#555',
-                                                        mb: 1,
-                                                    }}
-                                                >
+                                                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#555', mb: 1 }}>
                                                     1. Choose Day:
                                                 </Typography>
                                                 {uniqueDays.length === 0 ? (
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="error"
-                                                        display="block"
-                                                        sx={{ mb: 2 }}
-                                                    >
-                                                        No working days
-                                                        scheduled yet.
+                                                    <Typography variant="caption" color="error" display="block" sx={{ mb: 2 }}>
+                                                        No working days scheduled yet.
                                                     </Typography>
                                                 ) : (
-                                                    <Box
-                                                        sx={{
-                                                            display: 'flex',
-                                                            gap: 1,
-                                                            flexWrap: 'wrap',
-                                                            mb: 3,
-                                                        }}
-                                                    >
-                                                        {uniqueDays.map(
-                                                            (dayName) => (
-                                                                <Chip
-                                                                    key={
-                                                                        dayName
-                                                                    }
-                                                                    label={
-                                                                        dayName
-                                                                    }
-                                                                    clickable
-                                                                    variant={
-                                                                        currentSelectedDay ===
-                                                                        dayName
-                                                                            ? 'filled'
-                                                                            : 'outlined'
-                                                                    }
-                                                                    sx={{
-                                                                        bgcolor:
-                                                                            currentSelectedDay ===
-                                                                            dayName
-                                                                                ? '#00796b'
-                                                                                : 'transparent',
-                                                                        color:
-                                                                            currentSelectedDay ===
-                                                                            dayName
-                                                                                ? '#fff'
-                                                                                : '#00796b',
-                                                                        borderColor:
-                                                                            '#00796b',
-                                                                        fontWeight:
-                                                                            'bold',
-                                                                        '&:hover':
-                                                                            {
-                                                                                bgcolor:
-                                                                                    currentSelectedDay ===
-                                                                                    dayName
-                                                                                        ? '#004d40'
-                                                                                        : '#e0f2f1',
-                                                                            },
-                                                                    }}
-                                                                    onClick={() =>
-                                                                        setSelectedDayForDoc(
-                                                                            {
-                                                                                ...selectedDayForDoc,
-                                                                                [docItem.id]:
-                                                                                    dayName,
-                                                                            }
-                                                                        )
-                                                                    }
-                                                                />
-                                                            )
-                                                        )}
+                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
+                                                        {uniqueDays.map((dayName) => (
+                                                            <Chip
+                                                                key={dayName}
+                                                                label={dayName}
+                                                                clickable
+                                                                variant={currentSelectedDay === dayName ? 'filled' : 'outlined'}
+                                                                sx={{
+                                                                    bgcolor: currentSelectedDay === dayName ? '#00796b' : 'transparent',
+                                                                    color: currentSelectedDay === dayName ? '#fff' : '#00796b',
+                                                                    borderColor: '#00796b',
+                                                                    fontWeight: 'bold',
+                                                                    '&:hover': {
+                                                                        bgcolor: currentSelectedDay === dayName ? '#004d40' : '#e0f2f1',
+                                                                    },
+                                                                }}
+                                                                onClick={() => setSelectedDayForDoc({ ...selectedDayForDoc, [docItem.id]: dayName })}
+                                                            />
+                                                        ))}
                                                     </Box>
                                                 )}
 
-                                                <Typography
-                                                    variant="subtitle2"
-                                                    sx={{
-                                                        fontWeight: 'bold',
-                                                        color: '#00796b',
-                                                        mb: 1.5,
-                                                    }}
-                                                >
+                                                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#00796b', mb: 1.5 }}>
                                                     2. Available Times:
                                                 </Typography>
-                                                {slotsForSelectedDay.length ===
-                                                0 ? (
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="textSecondary"
-                                                    >
-                                                        Select a day to view
-                                                        slots.
+                                                {slotsForSelectedDay.length === 0 ? (
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        Select a day to view slots.
                                                     </Typography>
                                                 ) : (
-                                                    <Box
-                                                        sx={{
-                                                            display: 'flex',
-                                                            flexWrap: 'wrap',
-                                                            gap: 1.5,
-                                                        }}
-                                                    >
-                                                        {slotsForSelectedDay.map(
-                                                            (slot) => (
-                                                                <Button
-                                                                    key={
-                                                                        slot.id
-                                                                    }
-                                                                    variant="outlined"
-                                                                    size="small"
-                                                                    onClick={() =>
-                                                                        handleBookSlot(
-                                                                            docItem,
-                                                                            slot
-                                                                        )
-                                                                    }
-                                                                    sx={{
-                                                                        borderRadius:
-                                                                            '6px',
-                                                                        borderColor:
-                                                                            '#00796b',
-                                                                        color: '#00796b',
-                                                                        fontWeight:
-                                                                            '500',
-                                                                        textTransform:
-                                                                            'none',
-                                                                        '&:hover':
-                                                                            {
-                                                                                bgcolor:
-                                                                                    '#00796b',
-                                                                                color: '#fff',
-                                                                                borderColor:
-                                                                                    '#00796b',
-                                                                            },
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        slot.time.split(
-                                                                            ' - '
-                                                                        )[0]
-                                                                    }
-                                                                </Button>
-                                                            )
-                                                        )}
+                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                                                        {slotsForSelectedDay.map((slot) => (
+                                                            <Button
+                                                                key={slot.id}
+                                                                variant="outlined"
+                                                                size="small"
+                                                                onClick={() => handleBookSlot(docItem, slot)}
+                                                                sx={{
+                                                                    borderRadius: '6px',
+                                                                    borderColor: '#00796b',
+                                                                    color: '#00796b',
+                                                                    fontWeight: '500',
+                                                                    textTransform: 'none',
+                                                                    '&:hover': { bgcolor: '#00796b', color: '#fff', borderColor: '#00796b' },
+                                                                }}
+                                                            >
+                                                                {slot.time.split(' - ')[0]}
+                                                            </Button>
+                                                        ))}
                                                     </Box>
                                                 )}
                                             </CardContent>
@@ -511,115 +343,50 @@ export const PatientDashBoard = () => {
 
             {activeTab === 1 && (
                 <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-                    <Typography
-                        variant="h5"
-                        sx={{ fontWeight: 'bold', color: '#333', mb: 3 }}
-                    >
+                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#333', mb: 3 }}>
                         Your Booking History
                     </Typography>
                     <TableContainer>
                         <Table>
                             <TableHead sx={{ bgcolor: '#f4f7f6' }}>
                                 <TableRow>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Doctor Name
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Day & Time
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Status
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            color: '#00796b',
-                                        }}
-                                    >
-                                        Medical Prescription
-                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Doctor Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Day & Time</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Status</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Medical Prescription</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {myAppointments.length === 0 ? (
                                     <TableRow>
-                                        <TableCell
-                                            colSpan={4}
-                                            align="center"
-                                            sx={{ py: 4, color: '#999' }}
-                                        >
-                                            You haven't booked any appointments
-                                            yet.
+                                        <TableCell colSpan={4} align="center" sx={{ py: 4, color: '#999' }}>
+                                            You haven't booked any appointments yet.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     myAppointments.map((app) => (
-                                        <TableRow
-                                            key={app.id}
-                                            sx={{
-                                                '&:hover': {
-                                                    bgcolor: '#fafafa',
-                                                },
-                                            }}
-                                        >
-                                            <TableCell
-                                                sx={{ fontWeight: '500' }}
-                                            >
-                                                Dr. {app.doctorName}
-                                            </TableCell>
+                                        <TableRow key={app.id} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
+                                            <TableCell sx={{ fontWeight: '500' }}>Dr. {app.doctorName}</TableCell>
                                             <TableCell>{`${app.day} (${app.time})`}</TableCell>
                                             <TableCell>
                                                 <Chip
                                                     label={app.status}
-                                                    color={
-                                                        app.status ===
-                                                        'Completed'
-                                                            ? 'success'
-                                                            : app.status ===
-                                                                'Cancelled'
-                                                              ? 'error'
-                                                              : 'warning'
-                                                    }
+                                                    color={app.status === 'Completed' ? 'success' : app.status === 'Cancelled' ? 'error' : 'warning'}
                                                     size="small"
                                                 />
                                             </TableCell>
                                             <TableCell>
-                                                {app.status === 'Completed' &&
-                                                app.medicalRecord ? (
+                                                {app.status === 'Completed' && app.medicalRecord ? (
                                                     <Button
                                                         size="small"
                                                         variant="contained"
-                                                        sx={{
-                                                            bgcolor: '#00796b',
-                                                        }}
-                                                        onClick={() =>
-                                                            handleOpenRecord(
-                                                                app.medicalRecord
-                                                            )
-                                                        }
+                                                        sx={{ bgcolor: '#00796b' }}
+                                                        onClick={() => handleOpenRecord(app.medicalRecord)}
                                                     >
                                                         View Prescription 📄
                                                     </Button>
                                                 ) : (
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="textSecondary"
-                                                    >
+                                                    <Typography variant="caption" color="textSecondary">
                                                         Available after visit
                                                     </Typography>
                                                 )}
@@ -635,85 +402,19 @@ export const PatientDashBoard = () => {
 
             <Modal open={openModal} onClose={() => setOpenModal(false)}>
                 <Box sx={modalStyle}>
-                    <Typography
-                        variant="h5"
-                        sx={{
-                            fontWeight: 'bold',
-                            color: '#00796b',
-                            mb: 2,
-                            textAlign: 'center',
-                        }}
-                    >
-                        Official Medical Prescription 🩺
-                    </Typography>
-                    <Typography
-                        variant="caption"
-                        display="block"
-                        sx={{ mb: 3, textAlign: 'center', color: '#777' }}
-                    >
-                        Date of Visit: {selectedRecord?.date}
-                    </Typography>
-
-                    <Box
-                        sx={{
-                            mb: 2,
-                            p: 2,
-                            bgcolor: '#f9f9f9',
-                            borderRadius: 2,
-                        }}
-                    >
-                        <Typography
-                            variant="subtitle2"
-                            sx={{ fontWeight: 'bold', color: '#333' }}
-                        >
-                            Diagnosis (التشخيص):
-                        </Typography>
-                        <Typography
-                            variant="body2"
-                            color="textSecondary"
-                            sx={{ mt: 0.5, whiteSpace: 'pre-line' }}
-                        >
-                            {selectedRecord?.diagnosis}
-                        </Typography>
-                    </Box>
-
-                    <Box
-                        sx={{
-                            mb: 3,
-                            p: 2,
-                            bgcolor: '#e0f2f1',
-                            borderRadius: 2,
-                            borderLeft: '4px solid #00796b',
-                        }}
-                    >
-                        <Typography
-                            variant="subtitle2"
-                            sx={{ fontWeight: 'bold', color: '#00796b' }}
-                        >
-                            Prescription & Notes (العلاج والتعليمات):
-                        </Typography>
-                        <Typography
-                            variant="body2"
-                            color="textSecondary"
-                            sx={{
-                                mt: 0.5,
-                                whiteSpace: 'pre-line',
-                                fontWeight: '500',
-                            }}
-                        >
-                            {selectedRecord?.prescription}
-                        </Typography>
-                    </Box>
-
-                    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                        <Button
-                            variant="contained"
-                            sx={{ bgcolor: '#00796b' }}
-                            onClick={() => setOpenModal(false)}
-                        >
-                            Close
-                        </Button>
-                    </Box>
+                    {selectedRecord && (
+                        <>
+                            <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00796b', mb: 2 }}>
+                                Medical Prescription Details
+                            </Typography>
+                            <Typography variant="body1" sx={{ mb: 1 }}><strong>Date:</strong> {selectedRecord.date}</Typography>
+                            <Typography variant="body1" sx={{ mb: 1 }}><strong>Diagnosis:</strong> {selectedRecord.diagnosis}</Typography>
+                            <Typography variant="body1" sx={{ mb: 3 }}><strong>Prescription:</strong> {selectedRecord.prescription}</Typography>
+                            <Button fullWidth variant="outlined" sx={{ borderColor: '#00796b', color: '#00796b' }} onClick={() => setOpenModal(false)}>
+                                Close
+                            </Button>
+                        </>
+                    )}
                 </Box>
             </Modal>
         </Container>
