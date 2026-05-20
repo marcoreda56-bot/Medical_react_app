@@ -38,6 +38,7 @@ import {
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
+import DeleteIcon from '@mui/icons-material/Delete';
 import Swal from 'sweetalert2';
 import { useNotifications } from '../context/NotificationsContext';
 
@@ -171,6 +172,71 @@ export const DoctorDashBoard = () => {
         }
     };
 
+    const handleDeleteSlot = async (slotId, slotTime) => {
+        const result = await Swal.fire({
+            title: 'Delete Slot?',
+            text: `Are you sure you want to delete the slot [${slotTime}]?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            await deleteDoc(doc(db, 'doctor_slots', slotId));
+            Toast.fire({ icon: 'success', title: 'Slot deleted successfully!' });
+            fetchDoctorSlots();
+        } catch (err) {
+            console.error("Error deleting slot: ", err);
+            Toast.fire({ icon: 'error', title: 'Failed to delete slot.' });
+        }
+    };
+
+    const handleDeleteWholeDay = async (daySlots, dateLabel) => {
+        const unbookedSlots = daySlots.filter(s => !s.isBooked);
+        const bookedSlots = daySlots.filter(s => s.isBooked);
+
+        if (unbookedSlots.length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'No Available Slots!',
+                text: 'All slots for this day are already booked. Booked slots cannot be deleted.',
+                confirmButtonColor: '#00796b'
+            });
+            return;
+        }
+
+        const confirmText = bookedSlots.length > 0
+            ? `This will delete all ${unbookedSlots.length} available slots for ${dateLabel}. The ${bookedSlots.length} booked slots will remain untouched. Continue?`
+            : `Are you sure you want to delete all ${unbookedSlots.length} slots for ${dateLabel}?`;
+
+        const result = await Swal.fire({
+            title: 'Delete Whole Day?',
+            text: confirmText,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete day!'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const deletePromises = unbookedSlots.map((s) => deleteDoc(doc(db, 'doctor_slots', s.id)));
+            await Promise.all(deletePromises);
+
+            Toast.fire({ icon: 'success', title: 'Day slots deleted successfully!' });
+            fetchDoctorSlots();
+        } catch (err) {
+            console.error("Error deleting whole day: ", err);
+            Toast.fire({ icon: 'error', title: 'Failed to delete day slots.' });
+        }
+    };
+
     const handleApproveAppointment = async (appId) => {
         try {
             const appRef = doc(db, 'appointments', appId);
@@ -199,7 +265,7 @@ export const DoctorDashBoard = () => {
         try {
             const appRef = doc(db, 'appointments', appId);
             const appSnap = await getDoc(appRef);
-            
+
             if (!appSnap.exists()) {
                 Toast.fire({ icon: 'error', title: 'Appointment not found.' });
                 return;
@@ -207,7 +273,7 @@ export const DoctorDashBoard = () => {
 
             const appData = appSnap.data();
             const patientId = appData.patientId;
-            const slotId = appData.slotId; 
+            const slotId = appData.slotId;
 
             await updateDoc(appRef, { status: 'Cancelled' });
 
@@ -226,9 +292,9 @@ export const DoctorDashBoard = () => {
             }
 
             Toast.fire({ icon: 'success', title: 'Appointment cancelled & Slot released! 🔓' });
-            
+
             fetchAppointments();
-            fetchDoctorSlots(); 
+            fetchDoctorSlots();
         } catch (err) {
             console.error("Error cancelling appointment: ", err);
             Toast.fire({ icon: 'error', title: 'Action failed.' });
@@ -260,7 +326,7 @@ export const DoctorDashBoard = () => {
             const slotId = selectedAppointment.slotId;
             if (slotId) {
                 const slotRef = doc(db, 'doctor_slots', slotId);
-                await deleteDoc(slotRef); 
+                await deleteDoc(slotRef);
             }
 
             if (selectedAppointment?.patientId) {
@@ -298,7 +364,7 @@ export const DoctorDashBoard = () => {
         }
 
         const today = new Date();
-        today.setHours(0, 0, 0, 0); 
+        today.setHours(0, 0, 0, 0);
         const inputDate = new Date(selectedDate);
         inputDate.setHours(0, 0, 0, 0);
 
@@ -309,13 +375,13 @@ export const DoctorDashBoard = () => {
                 text: 'You cannot generate slots for a past date. Please select today or a future date.',
                 confirmButtonColor: '#00796b'
             });
-            return; 
+            return;
         }
 
         try {
             const checkQuery = query(collection(db, 'doctor_slots'), where('doctorId', '==', currentUser.uid), where('date', '==', selectedDate));
             const checkSnapshot = await getDocs(checkQuery);
-            
+
             if (!checkSnapshot.empty) {
                 Swal.fire({
                     icon: 'warning',
@@ -323,7 +389,7 @@ export const DoctorDashBoard = () => {
                     text: 'You have already generated slots for this specific date. Choose another date.',
                     confirmButtonColor: '#00796b'
                 });
-                return; 
+                return;
             }
 
             const options = { weekday: 'long' };
@@ -347,8 +413,8 @@ export const DoctorDashBoard = () => {
 
                 await addDoc(collection(db, 'doctor_slots'), {
                     doctorId: currentUser.uid,
-                    date: selectedDate,    
-                    day: dayName,          
+                    date: selectedDate,
+                    day: dayName,
                     time: finalTimeFormat,
                     isBooked: false,
                 });
@@ -374,7 +440,7 @@ export const DoctorDashBoard = () => {
     });
 
     const groupedSlots = slots.reduce((acc, slot) => {
-        const key = `${slot.day} (${slot.date})`;
+        const key = slot.date ? `${slot.day} (${slot.date})` : slot.day || 'Unknown Day';
         if (!acc[key]) acc[key] = [];
         acc[key].push(slot);
         return acc;
@@ -436,7 +502,7 @@ export const DoctorDashBoard = () => {
                                                 <TableCell sx={{ fontWeight: '500' }}>
                                                     {app.patientName || app.name || "Unknown Patient"}
                                                 </TableCell>
-                                                <TableCell>{`${app.day} (${app.time})`}</TableCell>
+                                                <TableCell>{`${app.day} ${app.date ? `(${app.date})` : ''} - [${app.time.split(' - ')[0]}]`}</TableCell>
                                                 <TableCell>
                                                     <Chip
                                                         label={app.status}
@@ -489,15 +555,15 @@ export const DoctorDashBoard = () => {
                                     margin="normal"
                                     required
                                     InputLabelProps={{ shrink: true }}
-                                    inputProps={{ 
+                                    inputProps={{
                                         min: new Date().toISOString().split('T')[0],
-                                        max: "2030-12-31" 
+                                        max: "2030-12-31"
                                     }}
                                     value={selectedDate}
                                     onChange={(e) => {
                                         const val = e.target.value;
                                         const year = val.split('-')[0];
-                                        if (year && year.length > 4) return; 
+                                        if (year && year.length > 4) return;
                                         setSelectedDate(val);
                                     }}
                                 />
@@ -545,13 +611,31 @@ export const DoctorDashBoard = () => {
                             ) : (
                                 Object.entries(groupedSlots).map(([dateLabel, daySlots]) => (
                                     <Box key={dateLabel} sx={{ mb: 4, p: 2.5, bgcolor: '#fcfdfe', borderRadius: 2, borderLeft: '5px solid #00796b' }}>
-                                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#00796b', mb: 1.5 }}>
-                                            📅 {dateLabel}{' '}
-                                            <Chip label={`${daySlots.length} Slots`} size="small" sx={{ bgcolor: '#e0f2f1', color: '#00796b', fontWeight: 'bold' }} />
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#00796b', mb: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                📅 {dateLabel}{' '}
+                                                <Chip label={`${daySlots.length} Slots`} size="small" sx={{ bgcolor: '#e0f2f1', color: '#00796b', fontWeight: 'bold' }} />
+                                            </Box>
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                color="error"
+                                                startIcon={<DeleteIcon />}
+                                                onClick={() => handleDeleteWholeDay(daySlots, dateLabel)}
+                                                sx={{ textTransform: 'none', borderRadius: 2 }}
+                                            >
+                                                Delete Day
+                                            </Button>
                                         </Typography>
                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
                                             {daySlots.map((s) => (
-                                                <Chip key={s.id} label={s.time} color={s.isBooked ? 'error' : 'success'} variant={s.isBooked ? 'filled' : 'outlined'} />
+                                                <Chip
+                                                    key={s.id}
+                                                    label={s.time}
+                                                    color={s.isBooked ? 'error' : 'success'}
+                                                    variant={s.isBooked ? 'filled' : 'outlined'}
+                                                    onDelete={!s.isBooked ? () => handleDeleteSlot(s.id, s.time) : undefined}
+                                                />
                                             ))}
                                         </Box>
                                     </Box>
