@@ -1,27 +1,31 @@
-import  { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase/config';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
-import { 
-  Container, Paper, Typography, TextField, Button, Box, Grid, Avatar, Divider 
+import {
+  Container, Paper, Typography, TextField, Button, Box, Grid, Avatar, Divider
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import SaveIcon from '@mui/icons-material/Save';
 import Swal from 'sweetalert2';
+import { useLanguage } from '../context/LanguageContext';
 
 export const Profile = () => {
   const { currentUser, userRole } = useAuth();
-  
+  const { t } = useLanguage();
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  
   const [specialty, setSpecialty] = useState('');
   const [bio, setBio] = useState('');
-  
   const [loading, setLoading] = useState(false);
 
   const Toast = Swal.mixin({
-    toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
   });
 
   useEffect(() => {
@@ -31,7 +35,7 @@ export const Profile = () => {
       try {
         const userDocRef = doc(db, 'users', currentUser.uid);
         const userDocSnap = await getDoc(userDocRef);
-        
+
         if (userDocSnap.exists()) {
           const userData = userDocSnap.data();
           setName(userData.name || '');
@@ -41,7 +45,6 @@ export const Profile = () => {
         if (userRole === 'doctor') {
           const docProfileRef = doc(db, 'doctors_profiles', currentUser.uid);
           const docProfileSnap = await getDoc(docProfileRef);
-          
           if (docProfileSnap.exists()) {
             const profileData = docProfileSnap.data();
             setSpecialty(profileData.specialty || '');
@@ -49,45 +52,48 @@ export const Profile = () => {
           }
         }
       } catch (err) {
-        console.error("Error fetching profile:", err);
-        Toast.fire({ icon: 'error', title: 'Failed to load profile data.' });
+        console.error('Error fetching profile:', err);
+        Toast.fire({ icon: 'error', title: t('profile.failedLoad') });
       }
     };
 
     fetchProfileData();
-  }, [currentUser, userRole]);
+  }, [currentUser, userRole, t]);
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
-      Toast.fire({ icon: 'error', title: 'Name field cannot be empty!' });
+      Toast.fire({ icon: 'error', title: t('profile.nameRequired') });
       return;
     }
 
     setLoading(true);
     try {
       const userDocRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userDocRef, { name: name });
+      await updateDoc(userDocRef, { name });
 
       if (userRole === 'doctor') {
         const docProfileRef = doc(db, 'doctors_profiles', currentUser.uid);
-        await setDoc(docProfileRef, {
-          doctor_id: currentUser.uid,
-          specialty: specialty,
-          bio: bio
-        }, { merge: true });
+        await setDoc(
+          docProfileRef,
+          {
+            doctor_id: currentUser.uid,
+            specialty,
+            bio,
+          },
+          { merge: true }
+        );
       }
 
       Swal.fire({
         icon: 'success',
-        title: 'Profile Updated!',
-        text: 'Your personal settings have been saved successfully.',
-        confirmButtonColor: '#00796b'
+        title: t('profile.updated'),
+        text: t('profile.updatedText'),
+        confirmButtonColor: '#00796b',
       });
-      
     } catch (err) {
-      console.error("Error updating profile:", err);
-      Toast.fire({ icon: 'error', title: 'Failed to update profile.' });
+      console.error('Error updating profile:', err);
+      Toast.fire({ icon: 'error', title: t('profile.failedSave') });
     } finally {
       setLoading(false);
     }
@@ -96,17 +102,16 @@ export const Profile = () => {
   return (
     <Container maxWidth="md" sx={{ mt: 5, mb: 5 }}>
       <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-        
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <Avatar sx={{ width: 60, height: 60, bgcolor: '#00796b' }}>
             <PersonIcon sx={{ fontSize: 35 }} />
           </Avatar>
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#333' }}>
-              My Profile Settings
+              {t('profile.title')}
             </Typography>
             <Typography variant="body2" color="textSecondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold', color: '#00796b' }}>
-              Account Type: {userRole}
+              {t('profile.accountType')}: {t(`roles.${userRole}`)}
             </Typography>
           </Box>
         </Box>
@@ -115,10 +120,9 @@ export const Profile = () => {
 
         <Box component="form" onSubmit={handleSave} noValidate>
           <Grid container spacing={3}>
-            
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Full Name"
+                label={t('register.fullName')}
                 fullWidth
                 variant="outlined"
                 value={name}
@@ -129,12 +133,12 @@ export const Profile = () => {
 
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Email Address"
+                label={t('login.email')}
                 fullWidth
                 variant="outlined"
                 value={email}
-                disabled 
-                helperText="Email account cannot be changed"
+                disabled
+                helperText={t('profile.emailHelp')}
               />
             </Grid>
 
@@ -142,26 +146,25 @@ export const Profile = () => {
               <>
                 <Grid item xs={12}>
                   <TextField
-                    label="Medical Specialty )"
+                    label={t('profile.specialty')}
                     fullWidth
                     variant="outlined"
                     value={specialty}
                     onChange={(e) => setSpecialty(e.target.value)}
-                    placeholder="e.g., Cardiologist, Dentist, Pediatrician"
-                    helperText="This helps patients find you easily when booking"
+                    placeholder={t('profile.specialty')}
+                    helperText={t('profile.bio')}
                   />
                 </Grid>
-
                 <Grid item xs={12}>
                   <TextField
-                    label="Professional Bio "
+                    label={t('profile.bio')}
                     fullWidth
                     variant="outlined"
                     multiline
                     rows={4}
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    placeholder="Write a brief background about your experience, clinics, or certifications..."
+                    placeholder={t('profile.bio')}
                   />
                 </Grid>
               </>
@@ -174,21 +177,19 @@ export const Profile = () => {
                 size="large"
                 disabled={loading}
                 startIcon={<SaveIcon />}
-                sx={{ 
-                  bgcolor: '#00796b', 
+                sx={{
+                  bgcolor: '#00796b',
                   '&:hover': { bgcolor: '#004d40' },
                   fontWeight: 'bold',
                   px: 4,
-                  borderRadius: 2
+                  borderRadius: 2,
                 }}
               >
-                {loading ? 'Saving Changes...' : 'Save Profile'}
+                {loading ? t('profile.savingChanges') : t('profile.saveProfile')}
               </Button>
             </Grid>
-
           </Grid>
         </Box>
-
       </Paper>
     </Container>
   );
