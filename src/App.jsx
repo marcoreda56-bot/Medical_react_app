@@ -5,7 +5,7 @@ import Register from './pages/register';
 import RoleRoute from './routes/RoleRoute';
 import { DoctorDashBoard } from './dashboards/DoctorDashBoard';
 import { PatientDashBoard } from './dashboards/PatientDashBoard';
-import { AdminDashBoard } from './dashboards/AdminDashBoard';
+import { AdminDashBoard } from './features/admin/AdminDashBoard';
 import { useAuth } from './context/AuthContext';
 import { Navbar } from "./components/NavBar.jsx"; 
 import { Profile } from './pages/Profile.jsx';
