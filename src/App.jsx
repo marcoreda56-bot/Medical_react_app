@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import Login from './pages/login';
@@ -8,7 +7,7 @@ import { DoctorDashBoard } from './dashboards/DoctorDashBoard';
 import { PatientDashBoard } from './dashboards/PatientDashBoard';
 import { AdminDashBoard } from './dashboards/AdminDashBoard';
 import { useAuth } from './context/AuthContext';
-import { Navbar } from "./components/NavBar.jsx"; // تأكد من مطابقة الحروف مع اسم الملف الفعلي
+import { Navbar } from "./components/NavBar.jsx"; 
 import { Profile } from './pages/Profile.jsx';
 
 function AppContent() {
