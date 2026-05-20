@@ -24,13 +24,14 @@ import { DoctorsPanel } from './components/DoctorsPanel';
 import { SpecialtiesPanel } from './components/SpecialtiesPanel';
 import { AppointmentsPanel } from './components/AppointmentsPanel';
 import { ConfigPanel } from './components/ConfigPanel';
+import { AnalyticsPanel } from './components/AnalyticsPanel';
 
 const statusLabel = (status) => {
   if (!status) return 'Unknown';
   return status.charAt(0).toUpperCase() + status.slice(1);
 };
 
-const tabLabels = ['Users', 'Doctors', 'Specialties', 'Appointments', 'Config'];
+const tabLabels = ['Users', 'Doctors', 'Specialties', 'Appointments', 'Config', 'Analytics'];
 
 export const AdminDashBoard = () => {
   const dispatch = useDispatch();
@@ -79,9 +80,43 @@ export const AdminDashBoard = () => {
       totalDoctors: doctors.length,
       pendingDoctors: users.filter((user) => user.role === 'doctor' && user.status === 'pending').length,
       totalAppointments: appointments.length,
+      totalSpecialties: specialties.length,
     }),
-    [users, doctors, appointments]
+    [users, doctors, specialties, appointments]
   );
+
+  const analyticsData = useMemo(() => {
+    const normalize = (value, fallback) => {
+      if (!value) return fallback;
+      const trimmed = String(value).trim();
+      return trimmed.length === 0 ? fallback : trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+    };
+
+    const userStatusCounts = users.reduce((acc, user) => {
+      const status = normalize(user.status, 'Unknown');
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const appointmentStatusCounts = appointments.reduce((acc, appointment) => {
+      const status = normalize(appointment.status, 'Pending');
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const specialtyCounts = doctors.reduce((acc, doctor) => {
+      const specialty = doctor.profile?.specialty || 'Unassigned';
+      acc[specialty] = (acc[specialty] || 0) + 1;
+      return acc;
+    }, {});
+
+    return {
+      userStatusCounts,
+      appointmentStatusCounts,
+      specialtyCounts,
+      totalConfigs: configs.length,
+    };
+  }, [users, doctors, appointments, configs]);
 
   const getDoctorDraft = (doctor) => ({
     specialty: doctorDrafts[doctor.id]?.specialty ?? doctor.profile?.specialty ?? '',
@@ -302,6 +337,15 @@ export const AdminDashBoard = () => {
             setConfigForm({ key: '', value: '' });
           }}
           onDelete={handleDeleteConfig}
+        />
+      )}
+      {activeTab === 5 && (
+        <AnalyticsPanel
+          stats={stats}
+          userStatusCounts={analyticsData.userStatusCounts}
+          appointmentStatusCounts={analyticsData.appointmentStatusCounts}
+          specialtyCounts={analyticsData.specialtyCounts}
+          totalConfigs={analyticsData.totalConfigs}
         />
       )}
 

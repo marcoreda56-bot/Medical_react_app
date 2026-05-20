@@ -9,11 +9,11 @@ export const OverviewCards = ({ stats }) => {
   ];
 
   return (
-    <Grid container spacing={2} sx={{ mb: 3 }}>
+    <Grid container spacing={3} sx={{ mb: 3 }}>
       {items.map((item) => (
         <Grid item xs={12} sm={6} md={3} key={item.title}>
-          <Card sx={{ borderLeft: `5px solid ${item.color}`, minHeight: 120 }}>
-            <CardContent>
+          <Card sx={{ borderLeft: `5px solid ${item.color}`, minHeight: 140, display: 'flex', alignItems: 'center' }}>
+            <CardContent sx={{ width: '100%' }}>
               <Typography variant="subtitle2" sx={{ color: item.color, fontWeight: 'bold' }}>
                 {item.title}
               </Typography>
