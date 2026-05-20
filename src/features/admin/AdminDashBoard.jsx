@@ -43,21 +43,35 @@ export const AdminDashBoard = () => {
   const [configForm, setConfigForm] = useState({ key: '', value: '' });
   const [editingConfig, setEditingConfig] = useState(null);
   const [doctorDrafts, setDoctorDrafts] = useState({});
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  const [appointmentsError, setAppointmentsError] = useState(null);
+
+  const refreshAppointments = async () => {
+    setAppointmentsLoading(true);
+    setAppointmentsError(null);
+    try {
+      await dispatch(fetchAppointments()).unwrap();
+    } catch (err) {
+      setAppointmentsError(err.message || 'Failed to load appointments');
+    } finally {
+      setAppointmentsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) return;
     dispatch(fetchAllUsers());
     dispatch(fetchDoctors());
     dispatch(fetchSpecialties());
-    dispatch(fetchAppointments());
+    refreshAppointments();
     dispatch(fetchConfigs());
   }, [currentUser, dispatch]);
 
   useEffect(() => {
     if (activeTab === 3) {
-      dispatch(fetchAppointments());
+      refreshAppointments();
     }
-  }, [activeTab, dispatch]);
+  }, [activeTab]);
 
   const stats = useMemo(
     () => ({
@@ -267,7 +281,14 @@ export const AdminDashBoard = () => {
           onDelete={handleDeleteSpecialty}
         />
       )}
-      {activeTab === 3 && <AppointmentsPanel appointments={appointments} />}
+      {activeTab === 3 && (
+        <AppointmentsPanel
+          appointments={appointments}
+          onRefresh={refreshAppointments}
+          loading={appointmentsLoading}
+          error={appointmentsError}
+        />
+      )}
       {activeTab === 4 && (
         <ConfigPanel
           configs={configs}

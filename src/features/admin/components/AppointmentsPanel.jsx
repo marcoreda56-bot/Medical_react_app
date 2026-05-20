@@ -1,4 +1,4 @@
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Typography, Paper } from '@mui/material';
+import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Typography, Paper } from '@mui/material';
 
 const statusColor = (status) => {
   if (!status) return 'warning';
@@ -8,12 +8,22 @@ const statusColor = (status) => {
   return 'warning';
 };
 
-export const AppointmentsPanel = ({ appointments }) => {
+export const AppointmentsPanel = ({ appointments, onRefresh, loading, error }) => {
   return (
     <Paper elevation={3} sx={{ p: 3, borderRadius: 3 }}>
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-        Appointments Overview
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+          Appointments Overview
+        </Typography>
+        <Button variant="outlined" onClick={onRefresh} disabled={loading}>
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </Button>
+      </Box>
+      {error && (
+        <Typography color="error" sx={{ mb: 2 }}>
+          {error}
+        </Typography>
+      )}
       <TableContainer>
         <Table>
           <TableHead sx={{ bgcolor: '#e0f7fa' }}>

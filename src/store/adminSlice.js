@@ -149,8 +149,17 @@ const adminSlice = createSlice({
       .addCase(fetchSpecialties.fulfilled, (state, action) => {
         state.specialties = action.payload;
       })
+      .addCase(fetchAppointments.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
       .addCase(fetchAppointments.fulfilled, (state, action) => {
+        state.status = 'succeeded';
         state.appointments = action.payload;
+      })
+      .addCase(fetchAppointments.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.error.message;
       })
       .addCase(fetchConfigs.fulfilled, (state, action) => {
         state.configs = action.payload;
