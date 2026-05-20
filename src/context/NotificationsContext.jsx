@@ -8,9 +8,7 @@ import {
     addDoc,
     updateDoc,
     doc,
-    orderBy,
     serverTimestamp,
-    getDoc,
 } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
@@ -28,14 +26,33 @@ export const NotificationsProvider = ({ children }) => {
 
         const q = query(
             collection(db, 'notifications'),
-            where('userId', '==', currentUser.uid),
-            orderBy('createdAt', 'desc')
+            where('userId', '==', currentUser.uid)
         );
 
-        const unsub = onSnapshot(q, (snap) => {
-            const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setNotifications(items);
-        });
+        const unsub = onSnapshot(
+            q,
+            (snap) => {
+                const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                // sort client-side by createdAt descending when available
+                items.sort((a, b) => {
+                    const ta = a.createdAt?.toDate
+                        ? a.createdAt.toDate().getTime()
+                        : a.createdAt?.seconds
+                          ? a.createdAt.seconds * 1000
+                          : 0;
+                    const tb = b.createdAt?.toDate
+                        ? b.createdAt.toDate().getTime()
+                        : b.createdAt?.seconds
+                          ? b.createdAt.seconds * 1000
+                          : 0;
+                    return tb - ta;
+                });
+                setNotifications(items);
+            },
+            (err) => {
+                console.error('Notifications listener error:', err);
+            }
+        );
 
         return () => unsub();
     }, [currentUser]);
