@@ -53,6 +53,12 @@ export const AdminDashBoard = () => {
     dispatch(fetchConfigs());
   }, [currentUser, dispatch]);
 
+  useEffect(() => {
+    if (activeTab === 3) {
+      dispatch(fetchAppointments());
+    }
+  }, [activeTab, dispatch]);
+
   const stats = useMemo(
     () => ({
       totalUsers: users.length,
