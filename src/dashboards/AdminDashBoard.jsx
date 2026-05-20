@@ -1,6 +1,1 @@
-
-export const AdminDashBoard = () => {
-  return (
-    <div>AdminDashBoard</div>
-  )
-}
+export { AdminDashBoard } from '../features/admin/AdminDashBoard.jsx';
