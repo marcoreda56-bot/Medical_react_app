@@ -25,15 +25,15 @@ import { SpecialtiesPanel } from './components/SpecialtiesPanel';
 import { AppointmentsPanel } from './components/AppointmentsPanel';
 import { ConfigPanel } from './components/ConfigPanel';
 import { AnalyticsPanel } from './components/AnalyticsPanel';
-
-const statusLabel = (status) => {
-  if (!status) return 'Unknown';
-  return status.charAt(0).toUpperCase() + status.slice(1);
-};
-
-const tabLabels = ['Users', 'Doctors', 'Specialties', 'Appointments', 'Config', 'Analytics'];
+import { useLanguage } from '../../context/LanguageContext';
 
 export const AdminDashBoard = () => {
+  const { t } = useLanguage();
+  const tabLabels = t('admin.tabs');
+  const statusLabel = (status) => {
+    if (!status) return t('statuses.unknown');
+    return t(`statuses.${status.toLowerCase()}`) || status.charAt(0).toUpperCase() + status.slice(1);
+  };
   const dispatch = useDispatch();
   const { currentUser } = useAuth();
   const { users, doctors, specialties, appointments, configs, error } = useSelector((state) => state.admin);
@@ -53,7 +53,7 @@ export const AdminDashBoard = () => {
     try {
       await dispatch(fetchAppointments()).unwrap();
     } catch (err) {
-      setAppointmentsError(err.message || 'Failed to load appointments');
+      setAppointmentsError(err.message || t('admin.noAppointments'));
     } finally {
       setAppointmentsLoading(false);
     }
@@ -149,33 +149,33 @@ export const AdminDashBoard = () => {
           status: draft.status,
         })
       ).unwrap();
-      showToast('success', 'Doctor updated');
+      showToast('success', t('admin.updated'));
     } catch (err) {
-      showToast('error', 'Failed to update doctor', err.message || '');
+      showToast('error', t('admin.doctorUpdateFailed'), err.message || '');
     }
   };
 
   const handleUserStatusChange = async (userId, targetStatus) => {
     try {
       await dispatch(updateUserStatus({ userId, status: targetStatus })).unwrap();
-      showToast('success', `User ${statusLabel(targetStatus)}`);
+      showToast('success', `${t('admin.updated')} ${t('statuses.' + targetStatus.toLowerCase())}`);
     } catch (err) {
-      showToast('error', 'Unable to change status', err.message || '');
+      showToast('error', t('admin.userStatusChangeFailed'), err.message || '');
     }
   };
 
   const handleAddSpecialty = async () => {
     if (!specialtyForm.name.trim()) {
-      showToast('warning', 'Specialty name is required');
+      showToast('warning', t('admin.specialtyNameRequired'));
       return;
     }
 
     try {
       await dispatch(addSpecialty({ name: specialtyForm.name, description: specialtyForm.description })).unwrap();
       setSpecialtyForm({ name: '', description: '' });
-      showToast('success', 'Specialty added');
+      showToast('success', t('admin.created'));
     } catch (err) {
-      showToast('error', 'Unable to add specialty', err.message || '');
+      showToast('error', t('admin.specialtyAddFailed'), err.message || '');
     }
   };
 
@@ -192,43 +192,43 @@ export const AdminDashBoard = () => {
       ).unwrap();
       setEditingSpecialty(null);
       setSpecialtyForm({ name: '', description: '' });
-      showToast('success', 'Specialty updated');
+      showToast('success', t('admin.updated'));
     } catch (err) {
-      showToast('error', 'Could not update specialty', err.message || '');
+      showToast('error', t('admin.specialtyUpdateFailed'), err.message || '');
     }
   };
 
   const handleDeleteSpecialty = async (specialtyId) => {
     const result = await Swal.fire({
-      title: 'Delete specialty?',
-      text: 'This action cannot be undone.',
+      title: t('admin.deleteSpecialtyConfirm'),
+      text: t('admin.deleteSpecialtyText'),
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonText: 'Delete',
-      cancelButtonText: 'Cancel',
+      confirmButtonText: t('common.yes'),
+      cancelButtonText: t('common.cancel'),
     });
     if (!result.isConfirmed) return;
 
     try {
       await dispatch(deleteSpecialty({ specialtyId })).unwrap();
-      showToast('success', 'Deleted');
+      showToast('success', t('admin.deleted'));
     } catch (err) {
-      showToast('error', 'Unable to delete', err.message || '');
+      showToast('error', t('admin.specialtyDeleteFailed'), err.message || '');
     }
   };
 
   const handleAddConfig = async () => {
     if (!configForm.key.trim() || !configForm.value.trim()) {
-      showToast('warning', 'Config key and value are required');
+      showToast('warning', t('admin.configKeyValueRequired'));
       return;
     }
 
     try {
       await dispatch(addConfig({ configKey: configForm.key, configValue: configForm.value })).unwrap();
       setConfigForm({ key: '', value: '' });
-      showToast('success', 'Config saved');
+      showToast('success', t('admin.created'));
     } catch (err) {
-      showToast('error', 'Unable to save config', err.message || '');
+      showToast('error', t('admin.configSaveFailed'), err.message || '');
     }
   };
 
@@ -243,27 +243,27 @@ export const AdminDashBoard = () => {
       await dispatch(updateConfig({ configId: editingConfig.id, key: configForm.key, value: configForm.value })).unwrap();
       setEditingConfig(null);
       setConfigForm({ key: '', value: '' });
-      showToast('success', 'Config updated');
+      showToast('success', t('admin.updated'));
     } catch (err) {
-      showToast('error', 'Unable to update config', err.message || '');
+      showToast('error', t('admin.configUpdateFailed'), err.message || '');
     }
   };
 
   const handleDeleteConfig = async (configId) => {
     const result = await Swal.fire({
-      title: 'Delete configuration?',
+      title: t('admin.deleteConfigConfirm'),
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonText: 'Delete',
-      cancelButtonText: 'Cancel',
+      confirmButtonText: t('common.yes'),
+      cancelButtonText: t('common.cancel'),
     });
     if (!result.isConfirmed) return;
 
     try {
       await dispatch(deleteConfig({ configId })).unwrap();
-      showToast('success', 'Config deleted');
+      showToast('success', t('admin.deleted'));
     } catch (err) {
-      showToast('error', 'Unable to delete', err.message || '');
+      showToast('error', t('admin.configDeleteFailed'), err.message || '');
     }
   };
 
@@ -272,7 +272,7 @@ export const AdminDashBoard = () => {
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 6 }}>
       <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold', color: '#00796b' }}>
-        Admin Control Center
+        {t('admin.dashboard')}
       </Typography>
 
       <OverviewCards stats={stats} />
