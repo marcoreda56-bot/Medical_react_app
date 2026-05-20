@@ -139,8 +139,13 @@ export const Navbar = () => {
                 onClose={handleNotificationsClose}
                 PaperProps={{ sx: { width: 320 } }}
             >
-                <MenuItem disabled>
-                    <ListItemText primary="Notifications" />
+                <MenuItem
+                    onClick={() => {
+                        handleNotificationsClose();
+                        navigate('/notifications');
+                    }}
+                >
+                    <ListItemText primary="View all notifications" />
                 </MenuItem>
                 <Divider />
                 {notifications.length === 0 && (
