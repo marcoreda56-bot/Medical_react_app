@@ -2,16 +2,18 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
-import { 
-  Grid, Box, Paper, Avatar, Typography, TextField, Button, 
-  RadioGroup, FormControlLabel, Radio, FormLabel 
+import {
+  Grid, Box, Paper, Avatar, Typography, TextField, Button,
+  RadioGroup, FormControlLabel, Radio, FormLabel
 } from '@mui/material';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
+import { useLanguage } from '../context/LanguageContext';
 
 const Register = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
-  
+  const { t } = useLanguage();
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,20 +30,20 @@ const Register = () => {
 
   const validateForm = () => {
     if (name.trim().length < 3) {
-      Toast.fire({ icon: 'error', title: 'Please enter a valid full name (at least 3 characters).' });
+      Toast.fire({ icon: 'error', title: t('register.toast.invalidName') });
       return false;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      Toast.fire({ icon: 'error', title: 'Please enter a valid email address.' });
+      Toast.fire({ icon: 'error', title: t('register.toast.invalidEmail') });
       return false;
     }
     if (password.length < 6) {
-      Toast.fire({ icon: 'error', title: 'Password must be at least 6 characters long.' });
+      Toast.fire({ icon: 'error', title: t('register.toast.invalidPassword') });
       return false;
     }
     if (password !== confirmPassword) {
-      Toast.fire({ icon: 'error', title: 'Passwords do not match!' });
+      Toast.fire({ icon: 'error', title: t('register.toast.passwordMismatch') });
       return false;
     }
     return true;
@@ -53,29 +55,26 @@ const Register = () => {
 
     try {
       await register(email, password, name, role);
-      
       Swal.fire({
-        title: 'Welcome to CarePulse!',
-        text: `Your account as a ${role} has been created successfully.`,
+        title: t('register.toast.successTitle'),
+        text: t('register.toast.successText'),
         icon: 'success',
         confirmButtonColor: '#00796b',
-        confirmButtonText: 'Let\'s Start'
+        confirmButtonText: t('login.signIn'),
       }).then((result) => {
         if (result.isConfirmed) navigate('/');
       });
-
     } catch (err) {
       if (err.code === 'auth/email-already-in-use') {
-        Toast.fire({ icon: 'error', title: 'This email is already in use!' });
+        Toast.fire({ icon: 'error', title: t('register.toast.emailInUse') });
       } else {
-        Toast.fire({ icon: 'error', title: 'Registration failed. Try again.' });
+        Toast.fire({ icon: 'error', title: t('register.toast.failed') });
       }
     }
   };
 
   return (
     <Grid container component="main" sx={{ height: '100vh' }}>
-      
       <Grid
         item
         xs={false}
@@ -84,7 +83,7 @@ const Register = () => {
         sx={{
           backgroundImage: 'url(https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&w=1200&q=80)',
           backgroundRepeat: 'no-repeat',
-          backgroundColor: (t) => t.palette.mode === 'light' ? t.palette.grey[50] : t.palette.grey[900],
+          backgroundColor: (theme) => theme.palette.mode === 'light' ? theme.palette.grey[50] : theme.palette.grey[900],
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           position: 'relative',
@@ -94,116 +93,143 @@ const Register = () => {
           '&::before': {
             content: '""',
             position: 'absolute',
-            top: 0, left: 0, width: '100%', height: '100%',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
             background: 'linear-gradient(135deg, rgba(0, 77, 64, 0.85) 0%, rgba(0, 121, 107, 0.6) 100%)',
-          }
+          },
         }}
       >
         <Box sx={{ position: 'relative', color: '#fff', px: 6, textAlign: 'left', maxWidth: '600px' }}>
           <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', mb: 2, letterSpacing: 1 }}>
-            Join CarePulse
+            {t('register.title')}
           </Typography>
           <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 'normal', lineHeight: 1.6 }}>
-            Begin your journey today. Access integrated healthcare workspaces, coordinate consultations, and manage digital health records instantly.
+            {t('register.subtitle')}
           </Typography>
         </Box>
       </Grid>
 
-      <Grid 
-        item 
-        xs={12} 
-        sm={8} 
-        md={5} 
-        component={Paper} 
-        elevation={0} 
-        square 
-        sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
+      <Grid
+        item
+        xs={12}
+        sm={8}
+        md={5}
+        component={Paper}
+        elevation={0}
+        square
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           bgcolor: '#fafafa',
-          overflowY: 'auto'
+          overflowY: 'auto',
         }}
       >
         <Box sx={{ my: 4, mx: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '420px', p: 3, bgcolor: '#fff', borderRadius: 4, boxShadow: '0px 10px 30px rgba(0,0,0,0.04)' }}>
-          
           <Avatar sx={{ m: 1, bgcolor: '#e0f2f1', width: 60, height: 60, border: '2px solid #00796b' }}>
             <LocalHospitalIcon sx={{ color: '#00796b', fontSize: 32 }} />
           </Avatar>
-          
+
           <Typography component="h1" variant="h4" sx={{ fontWeight: '800', color: '#00796b', mt: 1 }}>
-            Create Account
+            {t('register.title')}
           </Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2, mt: 0.5 }}>
-            Get started by filling your registration info
+            {t('register.subtitle')}
           </Typography>
 
           <Box component="form" onSubmit={handleSubmit} noValidate sx={{ width: '100%' }}>
             <TextField
-              margin="dense" required fullWidth label="Full Name" autoFocus
-              value={name} onChange={(e) => setName(e.target.value)}
+              margin="dense"
+              required
+              fullWidth
+              label={t('register.fullName')}
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
             />
             <TextField
-              margin="dense" required fullWidth label="Email Address" type="email"
-              value={email} onChange={(e) => setEmail(e.target.value)}
+              margin="dense"
+              required
+              fullWidth
+              label={t('register.email')}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
             />
             <TextField
-              margin="dense" required fullWidth label="Password" type="password"
-              value={password} onChange={(e) => setPassword(e.target.value)}
+              margin="dense"
+              required
+              fullWidth
+              label={t('register.password')}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
             />
             <TextField
-              margin="dense" required fullWidth label="Confirm Password" type="password"
-              value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+              margin="dense"
+              required
+              fullWidth
+              label={t('register.confirmPassword')}
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
             />
 
             <Box sx={{ mt: 2, mb: 1, p: 1.5, borderRadius: 2, border: '1px solid #e0e0e0', textAlign: 'left' }}>
               <FormLabel component="legend" sx={{ color: '#00796b', fontWeight: 'bold', fontSize: '0.85rem', mb: 0.5 }}>
-                PORTAL ACCESS ROLE
+                {t('register.roleLabel')}
               </FormLabel>
               <RadioGroup row value={role} onChange={(e) => setRole(e.target.value)}>
-                <FormControlLabel 
-                  value="patient" 
-                  control={<Radio sx={{ color: '#00796b', '&.Mui-checked': { color: '#00796b' } }} />} 
-                  label={<Typography sx={{ fontSize: '0.95rem', fontWeight: 500 }}>Patient</Typography>} 
+                <FormControlLabel
+                  value="patient"
+                  control={<Radio sx={{ color: '#00796b', '&.Mui-checked': { color: '#00796b' } }} />}
+                  label={<Typography sx={{ fontSize: '0.95rem', fontWeight: 500 }}>{t('register.patient')}</Typography>}
                 />
-                <FormControlLabel 
-                  value="doctor" 
-                  control={<Radio sx={{ color: '#00796b', '&.Mui-checked': { color: '#00796b' } }} />} 
-                  label={<Typography sx={{ fontSize: '0.95rem', fontWeight: 500 }}>Doctor</Typography>} 
+                <FormControlLabel
+                  value="doctor"
+                  control={<Radio sx={{ color: '#00796b', '&.Mui-checked': { color: '#00796b' } }} />}
+                  label={<Typography sx={{ fontSize: '0.95rem', fontWeight: 500 }}>{t('register.doctor')}</Typography>}
                 />
               </RadioGroup>
             </Box>
 
             <Button
-              type="submit" fullWidth variant="contained"
-              sx={{ 
-                mt: 3, mb: 2, padding: 1.4, 
-                bgcolor: '#00796b', 
-                '&:hover': { bgcolor: '#004d40', boxShadow: '0px 6px 20px rgba(0, 77, 64, 0.3)' }, 
-                fontWeight: 'bold', borderRadius: 2.5, textTransform: 'none', fontSize: '1rem',
-                boxShadow: '0px 4px 12px rgba(0, 121, 107, 0.2)'
+              type="submit"
+              fullWidth
+              variant="contained"
+              sx={{
+                mt: 3,
+                mb: 2,
+                padding: 1.4,
+                bgcolor: '#00796b',
+                '&:hover': { bgcolor: '#004d40', boxShadow: '0px 6px 20px rgba(0, 77, 64, 0.3)' },
+                fontWeight: 'bold',
+                borderRadius: 2.5,
+                textTransform: 'none',
+                fontSize: '1rem',
+                boxShadow: '0px 4px 12px rgba(0, 121, 107, 0.2)',
               }}
             >
-              Sign Up
+              {t('register.signUp')}
             </Button>
 
             <Box sx={{ mt: 2, textAlign: 'center' }}>
               <Typography variant="body2" color="textSecondary">
-                Already have an account?{' '}
+                {t('register.existingAccount')}{' '}
                 <Link to="/login" style={{ color: '#00796b', textDecoration: 'none', fontWeight: 'bold' }}>
-                  Sign In
+                  {t('register.signIn')}
                 </Link>
               </Typography>
             </Box>
-
           </Box>
         </Box>
       </Grid>
-
     </Grid>
   );
 };
