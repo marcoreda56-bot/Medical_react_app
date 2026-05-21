@@ -1,6 +1,4 @@
-import React from 'react';
 import { useNotifications } from '../context/NotificationsContext';
-import { useAuth } from '../context/AuthContext';
 import {
     Container,
     Paper,
@@ -12,7 +10,6 @@ import {
     IconButton,
     Chip,
     Box,
-    Button,
 } from '@mui/material';
 import DoneIcon from '@mui/icons-material/Done';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -24,7 +21,6 @@ import { db } from '../firebase/config';
 
 const NotificationsPage = () => {
     const { notifications, markAsRead } = useNotifications();
-    const { userRole } = useAuth();
     const navigate = useNavigate();
 
     const handleOpen = async (n) => {
@@ -87,9 +83,27 @@ const NotificationsPage = () => {
                                 key={n.id}
                                 divider
                                 alignItems="flex-start"
+                                // 1. هنا بنغير لون الخلفية للإشعارات غير المقروءة ولون خفيف عند الـ Hover
+                                sx={{
+                                    backgroundColor: n.read ? 'transparent' : 'action.hover',
+                                    transition: 'background-color 0.3s ease',
+                                    borderRadius: '4px',
+                                    mb: 0.5,
+                                    '&:hover': {
+                                        backgroundColor: n.read ? 'action.hover' : 'action.selected',
+                                    },
+                                }}
                             >
                                 <ListItemText
-                                    primary={n.title}
+                                    // 2. تعديل الـ primary ليكون الخط عريض (Bold) لو مش مقروءة
+                                    primary={
+                                        <Typography 
+                                            variant="body1" 
+                                            sx={{ fontWeight: n.read ? 'normal' : 'bold' }}
+                                        >
+                                            {n.title}
+                                        </Typography>
+                                    }
                                     secondary={n.body}
                                 />
                                 <ListItemSecondaryAction>
@@ -98,22 +112,31 @@ const NotificationsPage = () => {
                                         aria-label="open"
                                         onClick={() => handleOpen(n)}
                                         title="Open"
+                                        sx={{ mr: 1 }}
                                     >
                                         <OpenInNewIcon />
                                     </IconButton>
-                                    <IconButton
-                                        edge="end"
-                                        aria-label="mark-read"
-                                        onClick={() => markAsRead(n.id)}
-                                        title="Mark as read"
-                                    >
-                                        <DoneIcon />
-                                    </IconButton>
+                                    
+                                    {/* 3. إظهار زر التحديد كمقروء فقط إذا كان الإشعار غير مقروء فعلياً */}
+                                    {!n.read && (
+                                        <IconButton
+                                            edge="end"
+                                            aria-label="mark-read"
+                                            onClick={() => markAsRead(n.id)}
+                                            title="Mark as read"
+                                            color="success"
+                                            sx={{ mr: 1 }}
+                                        >
+                                            <DoneIcon />
+                                        </IconButton>
+                                    )}
+                                    
                                     <IconButton
                                         edge="end"
                                         aria-label="delete"
                                         onClick={() => handleDelete(n)}
                                         title="Delete"
+                                        color="error"
                                     >
                                         <DeleteIcon />
                                     </IconButton>
