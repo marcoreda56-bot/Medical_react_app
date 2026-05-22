@@ -40,6 +40,8 @@ import {
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import SearchIcon from '@mui/icons-material/Search';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Swal from 'sweetalert2';
 import { useNotifications } from '../context/NotificationsContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -74,7 +76,7 @@ const parseSlotTime = (timeStr, dateStr) => {
     const startPart = timeStr.split(' - ')[0].trim();
     const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
     if (!match) return null;
-    let [_, hours, minutes, ampm] = match;
+    let [, hours, minutes, ampm] = match;
     hours = parseInt(hours);
     minutes = parseInt(minutes);
     if (ampm.toUpperCase() === 'PM' && hours !== 12) {
@@ -91,7 +93,7 @@ const timeToMinutes = (timeStr) => {
     const startPart = timeStr.split(' - ')[0].trim();
     const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
     if (!match) return 0;
-    let [_, hours, minutes, ampm] = match;
+    let [, hours, minutes, ampm] = match;
     hours = parseInt(hours);
     minutes = parseInt(minutes);
     if (ampm.toUpperCase() === 'PM' && hours !== 12) {
@@ -137,6 +139,8 @@ export const PatientDashBoard = () => {
 
     const [openModal, setOpenModal] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState(null);
+    const [doctorModalOpen, setDoctorModalOpen] = useState(false);
+    const [selectedDoctorProfile, setSelectedDoctorProfile] = useState(null);
 
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -249,27 +253,66 @@ export const PatientDashBoard = () => {
     };
 
     const handleBookSlot = async (doctor, slot) => {
+        const doctorName = doctor.name || 'Doctor';
+        const amount = Number(doctor.profile?.consultationFee) || 250;
         const dayLabel = `${translateDayName(slot.day, t)} (${slot.date})`;
         const startTimeStr = slot.time.split(' - ')[0];
 
-        const titleText = t('doctor.bookingConfirmationTitle');
-        const confirmText = t('doctor.bookingConfirmationText')
-            .replace('{doctor}', doctor.name)
-            .replace('{day}', dayLabel)
-            .replace('{time}', startTimeStr);
-
-        const confirmBtn = t('doctor.confirmBookBtn');
+        const titleText = 'Pay & Book Appointment';
         const cancelBtn = t('doctor.cancelBookBtn');
 
         const result = await Swal.fire({
             title: titleText,
-            text: confirmText,
-            icon: 'question',
+            html: `
+                <div style="text-align:left">
+                    <p><strong>Doctor:</strong> Dr. ${doctorName}</p>
+                    <p><strong>Appointment:</strong> ${dayLabel} at ${startTimeStr}</p>
+                    <p><strong>Amount:</strong> ${amount} EGP</p>
+                    <hr />
+                    <input id="payment-card-name" class="swal2-input" placeholder="Cardholder name" />
+                    <input id="payment-card-number" class="swal2-input" placeholder="Card number" maxlength="19" />
+                    <input id="payment-card-expiry" class="swal2-input" placeholder="MM/YY" maxlength="5" />
+                    <input id="payment-card-cvv" class="swal2-input" placeholder="CVV" maxlength="4" type="password" />
+                    <p style="font-size:12px;color:#64748b;margin-top:10px">
+                        Demo payment: this records the payment status in Firestore before booking.
+                    </p>
+                </div>
+            `,
+            icon: 'info',
             showCancelButton: true,
             confirmButtonColor: '#00796b',
             cancelButtonColor: '#d33',
-            confirmButtonText: confirmBtn,
+            confirmButtonText: `Pay ${amount} EGP & Book`,
             cancelButtonText: cancelBtn,
+            focusConfirm: false,
+            preConfirm: () => {
+                const cardName = document.getElementById('payment-card-name')?.value.trim();
+                const cardNumber = document.getElementById('payment-card-number')?.value.replace(/\s/g, '');
+                const expiry = document.getElementById('payment-card-expiry')?.value.trim();
+                const cvv = document.getElementById('payment-card-cvv')?.value.trim();
+
+                if (!cardName || !cardNumber || !expiry || !cvv) {
+                    Swal.showValidationMessage('Please complete all payment fields.');
+                    return false;
+                }
+
+                if (!/^\d{12,19}$/.test(cardNumber)) {
+                    Swal.showValidationMessage('Please enter a valid card number.');
+                    return false;
+                }
+
+                if (!/^\d{2}\/\d{2}$/.test(expiry)) {
+                    Swal.showValidationMessage('Expiry must use MM/YY format.');
+                    return false;
+                }
+
+                if (!/^\d{3,4}$/.test(cvv)) {
+                    Swal.showValidationMessage('Please enter a valid CVV.');
+                    return false;
+                }
+
+                return { cardName, last4: cardNumber.slice(-4) };
+            },
         });
 
         if (result.isConfirmed) {
@@ -278,12 +321,17 @@ export const PatientDashBoard = () => {
                     patientId: currentUser.uid,
                     patientName: currentUser.displayName || 'Patient',
                     doctorId: doctor.id,
-                    doctorName: doctor.name,
+                    doctorName,
                     day: slot.day,
                     date: slot.date,
                     time: slot.time,
                     slotId: slot.id,
                     status: 'Pending',
+                    consultationFee: amount,
+                    paymentStatus: 'Paid',
+                    paymentMethod: 'Online card',
+                    paymentCardLast4: result.value?.last4 || '',
+                    paidAt: new Date(),
                 });
 
                 const appointmentId = appRef.id;
@@ -306,7 +354,7 @@ export const PatientDashBoard = () => {
 
                 const patientNotificationTitle = t('notifications.bookingCreatedTitle');
                 const patientNotificationBody = t('notifications.bookingCreatedBody')
-                    .replace('{doctor}', doctor.name)
+                    .replace('{doctor}', doctorName)
                     .replace('{day}', dayLabel)
                     .replace('{time}', startTimeStr);
 
@@ -338,11 +386,51 @@ export const PatientDashBoard = () => {
         setOpenModal(true);
     };
 
+    const handleOpenDoctorProfile = (doctor) => {
+        setSelectedDoctorProfile(doctor);
+        setDoctorModalOpen(true);
+    };
+
+    const handlePayAppointment = async (appointment) => {
+        const amount = Number(appointment.consultationFee) || 250;
+        const result = await Swal.fire({
+            title: 'Pay Appointment Fee',
+            html: `
+                <div style="text-align:left">
+                    <p><strong>Doctor:</strong> Dr. ${appointment.doctorName || 'Doctor'}</p>
+                    <p><strong>Amount:</strong> ${amount} EGP</p>
+                    <p>This demo records the payment in Firestore. Connect Stripe or Paymob on the backend for real card charging.</p>
+                </div>
+            `,
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: `Pay ${amount} EGP`,
+            cancelButtonText: t('common.cancel', 'Cancel'),
+            confirmButtonColor: '#006d77',
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const appointmentRef = doc(db, 'appointments', appointment.id);
+            await updateDoc(appointmentRef, {
+                paymentStatus: 'Paid',
+                paymentMethod: 'Online card',
+                paidAt: new Date(),
+            });
+            Toast.fire({ icon: 'success', title: 'Payment recorded successfully.' });
+            fetchUpdatedData();
+        } catch (err) {
+            console.error('Payment update failed:', err);
+            Toast.fire({ icon: 'error', title: 'Payment failed.' });
+        }
+    };
+
     const filteredDoctors = doctors.filter((docItem) => {
-        const matchesSearch = docItem.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = (docItem.name || docItem.email || '').toLowerCase().includes(searchQuery.toLowerCase());
         const doctorSpecialty = docItem.profile?.specialty || '';
         const matchesSpecialty = !selectedSpecialty || doctorSpecialty.toLowerCase() === selectedSpecialty.toLowerCase();
-        return matchesSearch && matchesSpecialty;
+        return docItem.status === 'approved' && matchesSearch && matchesSpecialty;
     });
 
     return (
@@ -462,17 +550,30 @@ export const PatientDashBoard = () => {
                                             <CardContent>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
                                                     <Avatar sx={{ bgcolor: '#00796b', width: 56, height: 56 }}>
-                                                        {docItem.name.charAt(0).toUpperCase()}
+                                                        {(docItem.name || 'D').charAt(0).toUpperCase()}
                                                     </Avatar>
                                                     <Box>
                                                         <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                                            Dr. {docItem.name}
+                                                            Dr. {docItem.name || 'Doctor'}
                                                         </Typography>
                                                         <Typography variant="caption" sx={{ fontWeight: '600', color: '#00796b' }}>
                                                             {docItem.profile?.specialty || t('patient.specialist', 'Specialist')}
                                                         </Typography>
+                                                        <Typography variant="body2" color="textSecondary">
+                                                            Fee: {Number(docItem.profile?.consultationFee) || 250} EGP
+                                                        </Typography>
                                                     </Box>
                                                 </Box>
+
+                                                <Button
+                                                    variant="outlined"
+                                                    size="small"
+                                                    startIcon={<InfoOutlinedIcon />}
+                                                    onClick={() => handleOpenDoctorProfile(docItem)}
+                                                    sx={{ mb: 2, borderColor: '#006d77', color: '#006d77' }}
+                                                >
+                                                    View Doctor Details
+                                                </Button>
 
                                                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#555', mb: 1 }}>
                                                     {t('patient.chooseDay', 'Choose Day:')}
@@ -528,7 +629,7 @@ export const PatientDashBoard = () => {
                                                                     '&:hover': { bgcolor: '#00796b', color: '#fff', borderColor: '#00796b' },
                                                                 }}
                                                             >
-                                                                {slot.time.split(' - ')[0]}
+                                                                Pay & Book {slot.time.split(' - ')[0]}
                                                             </Button>
                                                         ))}
                                                     </Box>
@@ -555,13 +656,14 @@ export const PatientDashBoard = () => {
                                     <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>{t('patient.doctorName', 'Doctor Name')}</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>{t('doctor.dayTime', 'Day & Time')}</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>{t('doctor.status', 'Status')}</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Payment</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>{t('patient.medicalPrescription', 'Medical Prescription')}</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {myAppointments.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={4} align="center" sx={{ py: 4, color: '#999' }}>
+                                        <TableCell colSpan={5} align="center" sx={{ py: 4, color: '#999' }}>
                                             {t('doctor.noAppointments', "You haven't booked any appointments yet.")}
                                         </TableCell>
                                     </TableRow>
@@ -578,6 +680,22 @@ export const PatientDashBoard = () => {
                                                     color={app.status === 'Completed' ? 'success' : app.status === 'Cancelled' ? 'error' : 'warning'}
                                                     size="small"
                                                 />
+                                            </TableCell>
+                                            <TableCell>
+                                                {app.paymentStatus === 'Paid' ? (
+                                                    <Chip label="Paid" color="success" size="small" />
+                                                ) : (
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        startIcon={<CreditCardIcon />}
+                                                        onClick={() => handlePayAppointment(app)}
+                                                        disabled={app.status === 'Cancelled'}
+                                                        sx={{ borderColor: '#006d77', color: '#006d77' }}
+                                                    >
+                                                        Pay {Number(app.consultationFee) || 250} EGP
+                                                    </Button>
+                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 {app.status === 'Completed' && app.medicalRecord ? (
@@ -616,6 +734,59 @@ export const PatientDashBoard = () => {
                             <Typography variant="body1" sx={{ mb: 3 }}><strong>{t('patient.prescriptionLabel', 'Prescription')}:</strong> {selectedRecord.prescription}</Typography>
                             <Button fullWidth variant="outlined" sx={{ borderColor: '#00796b', color: '#00796b' }} onClick={() => setOpenModal(false)}>
                                 {t('patient.close', 'Close')}
+                            </Button>
+                        </>
+                    )}
+                </Box>
+            </Modal>
+            <Modal open={doctorModalOpen} onClose={() => setDoctorModalOpen(false)}>
+                <Box sx={{ ...modalStyle, width: { xs: '92vw', sm: 520 } }}>
+                    {selectedDoctorProfile && (
+                        <>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                                <Avatar sx={{ bgcolor: '#006d77', width: 58, height: 58 }}>
+                                    {selectedDoctorProfile.name?.charAt(0)?.toUpperCase() || 'D'}
+                                </Avatar>
+                                <Box>
+                                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#102a43' }}>
+                                        Dr. {selectedDoctorProfile.name}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#006d77', fontWeight: 700 }}>
+                                        {selectedDoctorProfile.profile?.specialty || t('patient.specialist', 'Specialist')}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                            <Typography variant="body1" sx={{ mb: 2 }}>
+                                {selectedDoctorProfile.profile?.bio || 'No bio added yet.'}
+                            </Typography>
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
+                                <Grid size={{ xs: 12, sm: 6 }}>
+                                    <Typography variant="caption" color="textSecondary">Consultation Fee</Typography>
+                                    <Typography sx={{ fontWeight: 700 }}>
+                                        {Number(selectedDoctorProfile.profile?.consultationFee) || 250} EGP
+                                    </Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, sm: 6 }}>
+                                    <Typography variant="caption" color="textSecondary">Clinic Location</Typography>
+                                    <Typography sx={{ fontWeight: 700 }}>
+                                        {selectedDoctorProfile.profile?.location || 'Not provided'}
+                                    </Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, sm: 6 }}>
+                                    <Typography variant="caption" color="textSecondary">Phone</Typography>
+                                    <Typography sx={{ fontWeight: 700 }}>
+                                        {selectedDoctorProfile.profile?.phone || 'Not provided'}
+                                    </Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, sm: 6 }}>
+                                    <Typography variant="caption" color="textSecondary">Email</Typography>
+                                    <Typography sx={{ fontWeight: 700, wordBreak: 'break-word' }}>
+                                        {selectedDoctorProfile.email || 'Not provided'}
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+                            <Button fullWidth variant="contained" onClick={() => setDoctorModalOpen(false)}>
+                                {t('common.close', 'Close')}
                             </Button>
                         </>
                     )}

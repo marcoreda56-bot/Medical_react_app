@@ -25,6 +25,7 @@ export const Navbar = () => {
     const { t, toggleLanguage, language } = useLanguage();
     const navigate = useNavigate();
     const { notifications, markAsRead } = useNotifications();
+    const [anchorEl, setAnchorEl] = useState(null);
 
     const handleLogout = async () => {
         try {
@@ -38,7 +39,6 @@ export const Navbar = () => {
     if (!currentUser) return null;
 
     const unreadCount = notifications.filter((n) => !n.read).length;
-    const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
     const handleNotificationsClick = (e) => setAnchorEl(e.currentTarget);
     const handleNotificationsClose = () => setAnchorEl(null);
@@ -53,7 +53,7 @@ export const Navbar = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography
                         variant="h6"
-                        onClick={() => navigate('/')}
+                            onClick={() => navigate(currentUser ? '/home' : '/')}
                         sx={{
                             fontWeight: 'bold',
                             letterSpacing: 1,

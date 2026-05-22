@@ -30,10 +30,6 @@ import { useLanguage } from '../../context/LanguageContext';
 export const AdminDashBoard = () => {
   const { t } = useLanguage();
   const tabLabels = t('admin.tabs');
-  const statusLabel = (status) => {
-    if (!status) return t('statuses.unknown');
-    return t(`statuses.${status.toLowerCase()}`) || status.charAt(0).toUpperCase() + status.slice(1);
-  };
   const dispatch = useDispatch();
   const { currentUser } = useAuth();
   const { users, doctors, specialties, appointments, configs, error } = useSelector((state) => state.admin);
@@ -64,15 +60,9 @@ export const AdminDashBoard = () => {
     dispatch(fetchAllUsers());
     dispatch(fetchDoctors());
     dispatch(fetchSpecialties());
-    refreshAppointments();
+    dispatch(fetchAppointments());
     dispatch(fetchConfigs());
   }, [currentUser, dispatch]);
-
-  useEffect(() => {
-    if (activeTab === 3) {
-      refreshAppointments();
-    }
-  }, [activeTab]);
 
   const stats = useMemo(
     () => ({
@@ -121,6 +111,9 @@ export const AdminDashBoard = () => {
   const getDoctorDraft = (doctor) => ({
     specialty: doctorDrafts[doctor.id]?.specialty ?? doctor.profile?.specialty ?? '',
     bio: doctorDrafts[doctor.id]?.bio ?? doctor.profile?.bio ?? '',
+    consultationFee: doctorDrafts[doctor.id]?.consultationFee ?? doctor.profile?.consultationFee ?? '',
+    location: doctorDrafts[doctor.id]?.location ?? doctor.profile?.location ?? '',
+    phone: doctorDrafts[doctor.id]?.phone ?? doctor.profile?.phone ?? '',
     status: doctorDrafts[doctor.id]?.status ?? doctor.status ?? 'pending',
   });
 
@@ -146,6 +139,9 @@ export const AdminDashBoard = () => {
           doctorId: doctor.id,
           specialty: draft.specialty,
           bio: draft.bio,
+          consultationFee: draft.consultationFee,
+          location: draft.location,
+          phone: draft.phone,
           status: draft.status,
         })
       ).unwrap();
@@ -324,6 +320,7 @@ export const AdminDashBoard = () => {
           error={appointmentsError}
         />
       )}
+      
       {activeTab === 4 && (
         <ConfigPanel
           configs={configs}
@@ -339,6 +336,7 @@ export const AdminDashBoard = () => {
           onDelete={handleDeleteConfig}
         />
       )}
+
       {activeTab === 5 && (
         <AnalyticsPanel
           stats={stats}

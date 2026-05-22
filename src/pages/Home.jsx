@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import {
     Container,
     Paper,
@@ -15,14 +15,10 @@ import { useNotifications } from '../context/NotificationsContext';
 import { useNavigate } from 'react-router-dom';
 
 const Home = () => {
-    const { currentUser, userRole, userName } = useAuth();
+    const { userRole, userName } = useAuth();
     const { notifications, markAsRead } = useNotifications();
     const navigate = useNavigate();
-    const [recent, setRecent] = useState([]);
-
-    useEffect(() => {
-        setRecent(notifications.slice(0, 5));
-    }, [notifications]);
+    const recent = useMemo(() => notifications.slice(0, 5), [notifications]);
 
     const openNotification = async (n) => {
         try {

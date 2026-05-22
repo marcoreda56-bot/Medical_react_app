@@ -7,6 +7,7 @@ import {
   orderBy,
   getDocs,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -91,14 +92,25 @@ export const deleteSpecialty = createAsyncThunk('admin/deleteSpecialty', async (
 
 export const updateDoctorProfile = createAsyncThunk(
   'admin/updateDoctorProfile',
-  async ({ doctorId, specialty, bio, status }) => {
+  async ({ doctorId, specialty, bio, status, consultationFee, location, phone }) => {
     const profileRef = doc(db, 'doctors_profiles', doctorId);
-    await updateDoc(profileRef, { specialty, bio });
+    await setDoc(
+      profileRef,
+      {
+        doctor_id: doctorId,
+        specialty,
+        bio,
+        consultationFee: Number(consultationFee) || 0,
+        location,
+        phone,
+      },
+      { merge: true }
+    );
     if (status) {
       const userRef = doc(db, 'users', doctorId);
       await updateDoc(userRef, { status });
     }
-    return { doctorId, specialty, bio, status };
+    return { doctorId, specialty, bio, status, consultationFee: Number(consultationFee) || 0, location, phone };
   }
 );
 
@@ -184,9 +196,15 @@ const adminSlice = createSlice({
         state.specialties = state.specialties.filter((item) => item.id !== action.payload.specialtyId);
       })
       .addCase(updateDoctorProfile.fulfilled, (state, action) => {
-        const { doctorId, specialty, bio, status } = action.payload;
+        const { doctorId, specialty, bio, status, consultationFee, location, phone } = action.payload;
         state.doctors = state.doctors.map((doctor) =>
-          doctor.id === doctorId ? { ...doctor, profile: { ...doctor.profile, specialty, bio }, status: status || doctor.status } : doctor
+          doctor.id === doctorId
+            ? {
+                ...doctor,
+                profile: { ...doctor.profile, specialty, bio, consultationFee, location, phone },
+                status: status || doctor.status,
+              }
+            : doctor
         );
         if (status) {
           state.users = state.users.map((user) =>

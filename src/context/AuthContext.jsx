@@ -82,4 +82,5 @@ const value = { currentUser, userRole, userStatus, userName, register, login, lo
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);

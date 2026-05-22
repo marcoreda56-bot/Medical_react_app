@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase/config';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
@@ -18,15 +18,18 @@ export const Profile = () => {
   const [email, setEmail] = useState('');
   const [specialty, setSpecialty] = useState('');
   const [bio, setBio] = useState('');
+  const [consultationFee, setConsultationFee] = useState('');
+  const [location, setLocation] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const Toast = Swal.mixin({
+  const Toast = useMemo(() => Swal.mixin({
     toast: true,
     position: 'top-end',
     showConfirmButton: false,
     timer: 3000,
     timerProgressBar: true,
-  });
+  }), []);
 
   useEffect(() => {
     if (!currentUser?.uid) return;
@@ -49,6 +52,9 @@ export const Profile = () => {
             const profileData = docProfileSnap.data();
             setSpecialty(profileData.specialty || '');
             setBio(profileData.bio || '');
+            setConsultationFee(profileData.consultationFee || '');
+            setLocation(profileData.location || '');
+            setPhone(profileData.phone || '');
           }
         }
       } catch (err) {
@@ -58,7 +64,7 @@ export const Profile = () => {
     };
 
     fetchProfileData();
-  }, [currentUser, userRole, t]);
+  }, [currentUser, userRole, t, Toast]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -80,6 +86,9 @@ export const Profile = () => {
             doctor_id: currentUser.uid,
             specialty,
             bio,
+            consultationFee: Number(consultationFee) || 0,
+            location,
+            phone,
           },
           { merge: true }
         );
@@ -153,6 +162,35 @@ export const Profile = () => {
                     onChange={(e) => setSpecialty(e.target.value)}
                     placeholder={t('profile.specialty')}
                     helperText={t('profile.bio')}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    label="Consultation Fee"
+                    fullWidth
+                    type="number"
+                    variant="outlined"
+                    value={consultationFee}
+                    onChange={(e) => setConsultationFee(e.target.value)}
+                    inputProps={{ min: 0 }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    label="Clinic Location"
+                    fullWidth
+                    variant="outlined"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    label="Phone"
+                    fullWidth
+                    variant="outlined"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                   />
                 </Grid>
                 <Grid item xs={12}>

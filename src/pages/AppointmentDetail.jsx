@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -17,7 +17,7 @@ import Swal from 'sweetalert2';
 const AppointmentDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { currentUser, userRole } = useAuth();
+    const { userRole } = useAuth();
     const { sendNotification } = useNotifications();
     const [appointment, setAppointment] = useState(null);
     const [loading, setLoading] = useState(true);
