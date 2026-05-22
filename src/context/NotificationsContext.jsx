@@ -20,7 +20,6 @@ export const NotificationsProvider = ({ children }) => {
 
     useEffect(() => {
         if (!currentUser?.uid) {
-            setNotifications([]);
             return;
         }
 
@@ -83,11 +82,12 @@ export const NotificationsProvider = ({ children }) => {
 
     return (
         <NotificationsContext.Provider
-            value={{ notifications, sendNotification, markAsRead }}
+            value={{ notifications: currentUser?.uid ? notifications : [], sendNotification, markAsRead }}
         >
             {children}
         </NotificationsContext.Provider>
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useNotifications = () => useContext(NotificationsContext);

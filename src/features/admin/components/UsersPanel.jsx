@@ -1,10 +1,23 @@
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Button, Chip, Box, Typography, Paper } from '@mui/material';
+import { useMemo, useState } from 'react';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Button, Chip, Box, Typography, Paper, TablePagination } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import BlockIcon from '@mui/icons-material/Block';
 
 const labelCase = (value) => (value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Unknown');
 
 export const UsersPanel = ({ usersList, onStatusChange }) => {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const visibleUsers = useMemo(
+    () => usersList.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [usersList, page, rowsPerPage]
+  );
+
+  const handleRowsPerPageChange = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
   return (
     <Paper elevation={3} sx={{ p: 3, borderRadius: 3 }}>
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
@@ -29,7 +42,7 @@ export const UsersPanel = ({ usersList, onStatusChange }) => {
                 </TableCell>
               </TableRow>
             ) : (
-              usersList.map((user) => (
+              visibleUsers.map((user) => (
                 <TableRow key={user.id} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
                   <TableCell>{user.name || 'Unknown'}</TableCell>
                   <TableCell>{user.email}</TableCell>
@@ -73,6 +86,15 @@ export const UsersPanel = ({ usersList, onStatusChange }) => {
           </TableBody>
         </Table>
       </TableContainer>
+      <TablePagination
+        component="div"
+        count={usersList.length}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        onPageChange={(event, newPage) => setPage(newPage)}
+        rowsPerPageOptions={[5, 10, 25]}
+        onRowsPerPageChange={handleRowsPerPageChange}
+      />
     </Paper>
   );
 };
