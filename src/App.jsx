@@ -1,4 +1,9 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import {
+    BrowserRouter as Router,
+    Routes,
+    Route,
+    Navigate,
+} from 'react-router-dom';
 import './App.css';
 
 // Pages & Dashboards Imports
@@ -7,6 +12,7 @@ import Register from './pages/register';
 import { Profile } from './pages/Profile.jsx';
 import NotificationsPage from './pages/Notifications.jsx';
 import Home from './pages/Home.jsx';
+import Landing from './pages/Landing.jsx';
 import AppointmentDetail from './pages/AppointmentDetail.jsx';
 
 import RoleRoute from './routes/RoleRoute';
@@ -16,7 +22,7 @@ import { AdminDashBoard } from './features/admin/AdminDashBoard';
 
 // Context & Components Imports
 import { useAuth } from './context/AuthContext';
-import { Navbar } from "./components/NavBar.jsx"; 
+import { Navbar } from './components/NavBar.jsx';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 
 function AppContent() {
@@ -53,13 +59,21 @@ function AppContent() {
                 <Route
                     path="/login"
                     element={
-                        currentUser ? <Navigate to={getRedirectPath()} replace /> : <Login />
+                        currentUser ? (
+                            <Navigate to={getRedirectPath()} replace />
+                        ) : (
+                            <Login />
+                        )
                     }
                 />
                 <Route
                     path="/register"
                     element={
-                        currentUser ? <Navigate to={getRedirectPath()} replace /> : <Register />
+                        currentUser ? (
+                            <Navigate to={getRedirectPath()} replace />
+                        ) : (
+                            <Register />
+                        )
                     }
                 />
 
@@ -67,20 +81,32 @@ function AppContent() {
                 <Route
                     path="/profile"
                     element={
-                        currentUser ? <Profile /> : <Navigate to="/login" replace />
+                        currentUser ? (
+                            <Profile />
+                        ) : (
+                            <Navigate to="/login" replace />
+                        )
                     }
                 />
                 <Route
                     path="/notifications"
                     element={
-                        currentUser ? <NotificationsPage /> : <Navigate to="/login" replace />
+                        currentUser ? (
+                            <NotificationsPage />
+                        ) : (
+                            <Navigate to="/login" replace />
+                        )
                     }
                 />
-                <Route 
-                    path="/appointments/:id" 
+                <Route
+                    path="/appointments/:id"
                     element={
-                        currentUser ? <AppointmentDetail /> : <Navigate to="/login" replace />
-                    } 
+                        currentUser ? (
+                            <AppointmentDetail />
+                        ) : (
+                            <Navigate to="/login" replace />
+                        )
+                    }
                 />
 
                 {/* Dashboards Base Routes Role-Based */}
@@ -109,17 +135,18 @@ function AppContent() {
                     }
                 />
 
-                {/* Home & Fallback Redirection */}
+                {/* Landing / Home & Fallback Redirection */}
                 <Route
                     path="/"
-                    element={
-                        currentUser ? <Home /> : <Navigate to="/login" replace />
-                    }
+                    element={currentUser ? <Home /> : <Landing />}
                 />
                 <Route
                     path="*"
                     element={
-                        <Navigate to={currentUser ? getRedirectPath() : '/login'} replace />
+                        <Navigate
+                            to={currentUser ? getRedirectPath() : '/'}
+                            replace
+                        />
                     }
                 />
             </Routes>
