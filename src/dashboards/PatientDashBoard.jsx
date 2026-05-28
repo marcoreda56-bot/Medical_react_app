@@ -1,130 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { db } from '../firebase/config';
-import {
-    collection,
-    query,
-    where,
-    getDocs,
-    addDoc,
-    updateDoc,
-    doc,
-} from 'firebase/firestore';
-import {
-    Container,
-    Grid,
-    Paper,
-    Typography,
-    Box,
-    Button,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Chip,
-    Modal,
-    Tabs,
-    Tab,
-    Card,
-    CardContent,
-    Avatar,
-    TextField,
-    MenuItem,
-    Select,
-    FormControl,
-    InputLabel,
-    InputAdornment,
-} from '@mui/material';
-import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
-import EventNoteIcon from '@mui/icons-material/EventNote';
-import SearchIcon from '@mui/icons-material/Search';
-import CreditCardIcon from '@mui/icons-material/CreditCard';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { doctorAPI, appointmentAPI, specialtyAPI } from '../services/api';
 import Swal from 'sweetalert2';
-import { useNotifications } from '../context/NotificationsContext';
 import { useLanguage } from '../context/LanguageContext';
-
-const modalStyle = {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: 450,
-    bgcolor: 'background.paper',
-    borderRadius: 3,
-    boxShadow: 24,
-    p: 4,
-};
-
-const getLocalDateString = () => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
-
-const translateDayName = (dayStr, t) => {
-    if (!dayStr) return '';
-    return t(`days.${dayStr}`, dayStr);
-};
-
-const parseSlotTime = (timeStr, dateStr) => {
-    if (!timeStr) return null;
-    const startPart = timeStr.split(' - ')[0].trim();
-    const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-    if (!match) return null;
-    let [, hours, minutes, ampm] = match;
-    hours = parseInt(hours);
-    minutes = parseInt(minutes);
-    if (ampm.toUpperCase() === 'PM' && hours !== 12) {
-        hours += 12;
-    } else if (ampm.toUpperCase() === 'AM' && hours === 12) {
-        hours = 0;
-    }
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return new Date(year, month - 1, day, hours, minutes);
-};
-
-const timeToMinutes = (timeStr) => {
-    if (!timeStr) return 0;
-    const startPart = timeStr.split(' - ')[0].trim();
-    const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-    if (!match) return 0;
-    let [, hours, minutes, ampm] = match;
-    hours = parseInt(hours);
-    minutes = parseInt(minutes);
-    if (ampm.toUpperCase() === 'PM' && hours !== 12) {
-        hours += 12;
-    } else if (ampm.toUpperCase() === 'AM' && hours === 12) {
-        hours = 0;
-    }
-    return hours * 60 + minutes;
-};
-
-const sortSlots = (slots) => {
-    return [...slots].sort((a, b) => {
-        if (a.date && b.date && a.date !== b.date) {
-            return a.date.localeCompare(b.date);
-        }
-        return timeToMinutes(a.time) - timeToMinutes(b.time);
-    });
-};
-
-const isFutureSlot = (slot) => {
-    if (!slot.date) return false;
-    const todayStr = getLocalDateString();
-    if (slot.date < todayStr) return false;
-    if (slot.date === todayStr) {
-        const slotTime = parseSlotTime(slot.time, slot.date);
-        if (slotTime && slotTime < new Date()) {
-            return false;
-        }
-    }
-    return true;
-};
 
 export const PatientDashBoard = () => {
     const { currentUser } = useAuth();
@@ -136,12 +14,10 @@ export const PatientDashBoard = () => {
     const [myAppointments, setMyAppointments] = useState([]);
 
     const [selectedDayForDoc, setSelectedDayForDoc] = useState({});
-
     const [openModal, setOpenModal] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState(null);
     const [doctorModalOpen, setDoctorModalOpen] = useState(false);
     const [selectedDoctorProfile, setSelectedDoctorProfile] = useState(null);
-
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSpecialty, setSelectedSpecialty] = useState('');
@@ -154,128 +30,59 @@ export const PatientDashBoard = () => {
         timer: 3000,
         timerProgressBar: true,
     });
-    const { sendNotification } = useNotifications();
+
+    const loadPatientData = async () => {
+        if (!currentUser) return;
+        try {
+            const specRes = await specialtyAPI.getSpecialties();
+            setSpecialties(specRes.data);
+
+            const docRes = await doctorAPI.getApprovedDoctors();
+            setDoctors(docRes.data);
+
+            const slotRes = await doctorAPI.getAvailableSlots();
+            setAllSlots(slotRes.data);
+
+            const initialDays = {};
+            docRes.data.forEach((docItem) => {
+                const docSlots = slotRes.data.filter((s) => s.doctor === docItem.id);
+                if (docSlots.length > 0) {
+                    initialDays[docItem.id] = docSlots[0].date;
+                }
+            });
+            setSelectedDayForDoc(initialDays);
+
+            const appRes = await appointmentAPI.getMyAppointments();
+            setMyAppointments(appRes.data);
+        } catch (err) {
+            console.error('Error loading data:', err);
+            Toast.fire({ icon: 'error', title: 'Failed to fetch data from backend.' });
+        }
+    };
 
     useEffect(() => {
-        if (!currentUser?.uid) return;
-
-        async function loadPatientData() {
-            try {
-
-                const profilesSnapshot = await getDocs(collection(db, 'doctors_profiles'));
-                const profiles = new Map(profilesSnapshot.docs.map((docSnap) => [docSnap.id, docSnap.data()]));
-
-                const usersQuery = query(
-                    collection(db, 'users'),
-                    where('role', '==', 'doctor')
-                );
-                const usersSnapshot = await getDocs(usersQuery);
-                const doctorsData = usersSnapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    profile: profiles.get(doc.id) || {},
-                }));
-                setDoctors(doctorsData);
-
-                const slotsQuery = query(
-                    collection(db, 'doctor_slots'),
-                    where('isBooked', '==', false)
-                );
-                const slotsSnapshot = await getDocs(slotsQuery);
-
-                const slotsData = slotsSnapshot.docs
-                    .map((doc) => ({
-                        id: doc.id,
-                        ...doc.data(),
-                    }))
-                    .filter(isFutureSlot);
-                setAllSlots(sortSlots(slotsData));
-
-
-                const specsSnapshot = await getDocs(collection(db, 'specialties'));
-                const dbSpecs = specsSnapshot.docs.map((d) => d.data().name).filter(Boolean);
-                const docSpecs = doctorsData.map((d) => d.profile?.specialty).filter(Boolean);
-                const mergedSpecs = [...new Set([...dbSpecs, ...docSpecs])];
-                setSpecialties(mergedSpecs.map((name, index) => ({ id: `spec-${index}`, name })));
-
-                const initialDays = {};
-                usersSnapshot.docs.forEach((dDoc) => {
-                    const dSlots = slotsData.filter(
-                        (s) => s.doctorId === dDoc.id
-                    );
-                    if (dSlots.length > 0) {
-                        initialDays[dDoc.id] = dSlots[0].date;
-                    }
-                });
-                setSelectedDayForDoc(initialDays);
-
-                const appsQuery = query(
-                    collection(db, 'appointments'),
-                    where('patientId', '==', currentUser.uid)
-                );
-                const appsSnapshot = await getDocs(appsQuery);
-                setMyAppointments(
-                    appsSnapshot.docs.map((doc) => ({
-                        id: doc.id,
-                        ...doc.data(),
-                    }))
-                );
-            } catch (err) {
-                console.error('Error loading patient data: ', err);
-            }
-        }
-
         loadPatientData();
     }, [currentUser]);
 
-    const fetchUpdatedData = async () => {
-        const slotsQuery = query(
-            collection(db, 'doctor_slots'),
-            where('isBooked', '==', false)
-        );
-        const slotsSnapshot = await getDocs(slotsQuery);
-        setAllSlots(
-            sortSlots(
-                slotsSnapshot.docs
-                    .map((doc) => ({ id: doc.id, ...doc.data() }))
-                    .filter(isFutureSlot)
-            )
-        );
-
-        const appsQuery = query(
-            collection(db, 'appointments'),
-            where('patientId', '==', currentUser.uid)
-        );
-        const appsSnapshot = await getDocs(appsQuery);
-        setMyAppointments(
-            appsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-        );
-    };
-
     const handleBookSlot = async (doctor, slot) => {
-        const doctorName = doctor.name || 'Doctor';
-        const amount = Number(doctor.profile?.consultationFee) || 250;
-        const dayLabel = `${translateDayName(slot.day, t)} (${slot.date})`;
-        const startTimeStr = slot.time.split(' - ')[0];
-
-        const titleText = 'Pay & Book Appointment';
-        const cancelBtn = t('doctor.cancelBookBtn');
+        const doctorName = `${doctor.first_name} ${doctor.last_name}`.trim() || 'Doctor';
+        const amount = Number(doctor.doctor_profile?.consultation_fee) || 250;
+        const dayLabel = `${slot.date}`;
 
         const result = await Swal.fire({
-            title: titleText,
+            title: 'Pay & Book Appointment',
             html: `
-                <div style="text-align:left">
+                <div style="text-align:left;" class="space-y-3 text-sm text-gray-700">
                     <p><strong>Doctor:</strong> Dr. ${doctorName}</p>
-                    <p><strong>Appointment:</strong> ${dayLabel} at ${startTimeStr}</p>
+                    <p><strong>Appointment:</strong> ${dayLabel} (${slot.start_time} - ${slot.end_time})</p>
                     <p><strong>Amount:</strong> ${amount} EGP</p>
-                    <hr />
-                    <input id="payment-card-name" class="swal2-input" placeholder="Cardholder name" />
-                    <input id="payment-card-number" class="swal2-input" placeholder="Card number" maxlength="19" />
-                    <input id="payment-card-expiry" class="swal2-input" placeholder="MM/YY" maxlength="5" />
-                    <input id="payment-card-cvv" class="swal2-input" placeholder="CVV" maxlength="4" type="password" />
-                    <p style="font-size:12px;color:#64748b;margin-top:10px">
-                        Demo payment: this records the payment status in Firestore before booking.
-                    </p>
+                    <hr class="border-gray-200 my-2" />
+                    <input id="payment-card-name" class="swal2-input" placeholder="Cardholder name" style="width:100%; margin: 8px 0;" />
+                    <input id="payment-card-number" class="swal2-input" placeholder="Card number" maxlength="19" style="width:100%; margin: 8px 0;" />
+                    <div style="display:flex; gap:8px;">
+                        <input id="payment-card-expiry" class="swal2-input" placeholder="MM/YY" maxlength="5" style="width:50%;" />
+                        <input id="payment-card-cvv" class="swal2-input" placeholder="CVV" maxlength="4" type="password" style="width:50%;" />
+                    </div>
                 </div>
             `,
             icon: 'info',
@@ -283,7 +90,7 @@ export const PatientDashBoard = () => {
             confirmButtonColor: '#00796b',
             cancelButtonColor: '#d33',
             confirmButtonText: `Pay ${amount} EGP & Book`,
-            cancelButtonText: cancelBtn,
+            cancelButtonText: t('doctor.cancelBookBtn', 'Cancel'),
             focusConfirm: false,
             preConfirm: () => {
                 const cardName = document.getElementById('payment-card-name')?.value.trim();
@@ -295,503 +102,277 @@ export const PatientDashBoard = () => {
                     Swal.showValidationMessage('Please complete all payment fields.');
                     return false;
                 }
-
-                if (!/^\d{12,19}$/.test(cardNumber)) {
-                    Swal.showValidationMessage('Please enter a valid card number.');
-                    return false;
-                }
-
-                if (!/^\d{2}\/\d{2}$/.test(expiry)) {
-                    Swal.showValidationMessage('Expiry must use MM/YY format.');
-                    return false;
-                }
-
-                if (!/^\d{3,4}$/.test(cvv)) {
-                    Swal.showValidationMessage('Please enter a valid CVV.');
-                    return false;
-                }
-
-                return { cardName, last4: cardNumber.slice(-4) };
+                return { last4: cardNumber.slice(-4) };
             },
         });
 
         if (result.isConfirmed) {
             try {
-                const appRef = await addDoc(collection(db, 'appointments'), {
-                    patientId: currentUser.uid,
-                    patientName: currentUser.displayName || 'Patient',
-                    doctorId: doctor.id,
-                    doctorName,
-                    day: slot.day,
-                    date: slot.date,
-                    time: slot.time,
-                    slotId: slot.id,
-                    status: 'Pending',
-                    consultationFee: amount,
-                    paymentStatus: 'Paid',
-                    paymentMethod: 'Online card',
-                    paymentCardLast4: result.value?.last4 || '',
-                    paidAt: new Date(),
+                await appointmentAPI.book({
+                    slot_id: slot.id,
+                    doctor_id: doctor.id,
+                    consultation_fee: amount,
+                    payment_card_last4: result.value?.last4 || ''
                 });
 
-                const appointmentId = appRef.id;
-
-                const slotRef = doc(db, 'doctor_slots', slot.id);
-                await updateDoc(slotRef, { isBooked: true });
-
-                const docNotificationTitle = t('notifications.newRequestTitle');
-                const docNotificationBody = t('notifications.newRequestBody')
-                    .replace('{patient}', currentUser.displayName || 'Patient')
-                    .replace('{day}', dayLabel)
-                    .replace('{time}', startTimeStr);
-
-                await sendNotification(
-                    doctor.id,
-                    docNotificationTitle,
-                    docNotificationBody,
-                    { appointmentId, from: currentUser.uid }
-                );
-
-                const patientNotificationTitle = t('notifications.bookingCreatedTitle');
-                const patientNotificationBody = t('notifications.bookingCreatedBody')
-                    .replace('{doctor}', doctorName)
-                    .replace('{day}', dayLabel)
-                    .replace('{time}', startTimeStr);
-
-                await sendNotification(
-                    currentUser.uid,
-                    patientNotificationTitle,
-                    patientNotificationBody,
-                    { appointmentId }
-                );
-
-                Swal.fire(
-                    t('notifications.bookedTitle'),
-                    t('notifications.bookedSuccess'),
-                    'success'
-                );
-                fetchUpdatedData();
+                Swal.fire(t('notifications.bookedTitle', 'Booked!'), t('notifications.bookedSuccess', 'Your appointment has been successfully booked.'), 'success');
+                loadPatientData();
             } catch (err) {
-                console.error(err);
-                Toast.fire({
-                    icon: 'error',
-                    title: t('notifications.bookingFailed')
-                });
+                Swal.fire('Booking Failed', err.message || 'This slot might have been locked or already booked.', 'error');
             }
         }
     };
 
-    const handleOpenRecord = (medicalRecord) => {
-        setSelectedRecord(medicalRecord);
-        setOpenModal(true);
-    };
-
-    const handleOpenDoctorProfile = (doctor) => {
-        setSelectedDoctorProfile(doctor);
-        setDoctorModalOpen(true);
-    };
-
-    const handlePayAppointment = async (appointment) => {
-        const amount = Number(appointment.consultationFee) || 250;
-        const result = await Swal.fire({
-            title: 'Pay Appointment Fee',
-            html: `
-                <div style="text-align:left">
-                    <p><strong>Doctor:</strong> Dr. ${appointment.doctorName || 'Doctor'}</p>
-                    <p><strong>Amount:</strong> ${amount} EGP</p>
-                    <p>This demo records the payment in Firestore. Connect Stripe or Paymob on the backend for real card charging.</p>
-                </div>
-            `,
-            icon: 'info',
-            showCancelButton: true,
-            confirmButtonText: `Pay ${amount} EGP`,
-            cancelButtonText: t('common.cancel', 'Cancel'),
-            confirmButtonColor: '#006d77',
-        });
-
-        if (!result.isConfirmed) return;
-
-        try {
-            const appointmentRef = doc(db, 'appointments', appointment.id);
-            await updateDoc(appointmentRef, {
-                paymentStatus: 'Paid',
-                paymentMethod: 'Online card',
-                paidAt: new Date(),
-            });
-            Toast.fire({ icon: 'success', title: 'Payment recorded successfully.' });
-            fetchUpdatedData();
-        } catch (err) {
-            console.error('Payment update failed:', err);
-            Toast.fire({ icon: 'error', title: 'Payment failed.' });
-        }
-    };
-
     const filteredDoctors = doctors.filter((docItem) => {
-        const matchesSearch = (docItem.name || docItem.email || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const doctorSpecialty = docItem.profile?.specialty || '';
-        const matchesSpecialty = !selectedSpecialty || doctorSpecialty.toLowerCase() === selectedSpecialty.toLowerCase();
-        return docItem.status === 'approved' && matchesSearch && matchesSpecialty;
+        const fullName = `${docItem.first_name} ${docItem.last_name}`.toLowerCase();
+        const matchesSearch = fullName.includes(searchQuery.toLowerCase()) || docItem.email.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSpecialty = !selectedSpecialty || docItem.doctor_profile?.specialty === selectedSpecialty;
+        return matchesSearch && matchesSpecialty;
     });
 
     return (
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#00796b' }}>
-                    {t('patient.title', 'Patient Center')}
-                </Typography>
-                <Typography variant="body1" color="textSecondary" sx={{ fontWeight: '500' }}>
-                    {t('patient.subtitle', 'Stay healthy! 🛡️')}
-                </Typography>
-            </Box>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen bg-gray-50 text-gray-900">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+                <div>
+                    <h1 className="text-3xl font-extrabold text-hospital">{t('patient.title', 'Patient Center')}</h1>
+                    <p className="text-gray-500 text-sm mt-1">{t('patient.subtitle', 'Stay healthy! 🛡️')}</p>
+                </div>
+            </div>
 
-            <Paper elevation={2} sx={{ mb: 4, borderRadius: 2 }}>
-                <Tabs
-                    value={activeTab}
-                    onChange={(e, newValue) => setActiveTab(newValue)}
-                    indicatorColor="primary"
-                    textColor="primary"
-                    variant="fullWidth"
-                    sx={{
-                        '& .MuiTabs-indicator': { bgcolor: '#00796b', height: 3 },
-                        '& .Mui-selected': { color: '#00796b !important', fontWeight: 'bold' },
-                    }}
+            {/* Tabs Navigation */}
+            <div className="bg-white rounded-xl shadow-xs p-1.5 flex mb-8 border border-gray-100">
+                <button
+                    onClick={() => setActiveTab(0)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-lg transition-all duration-200 cursor-pointer ${activeTab === 0 ? 'bg-hospital text-white shadow-xs' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
-                    <Tab icon={<LocalHospitalIcon />} iconPosition="start" label={t('patient.tabs.0', 'Book An Appointment')} />
-                    <Tab icon={<EventNoteIcon />} iconPosition="start" label={t('patient.tabs.1', 'My Bookings & Records')} />
-                </Tabs>
-            </Paper>
+                    🏥 {t('patient.tabs.0', 'Book An Appointment')}
+                </button>
+                <button
+                    onClick={() => setActiveTab(1)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-lg transition-all duration-200 cursor-pointer ${activeTab === 1 ? 'bg-hospital text-white shadow-xs' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                    📅 {t('patient.tabs.1', 'My Bookings & Records')}
+                </button>
+            </div>
 
+            {/* TAB 0: BOOK AN APPOINTMENT */}
             {activeTab === 0 && (
-                <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 3, color: '#333' }}>
-                        {t('patient.availableDoctors', 'Available Doctors & Specialists')}
-                    </Typography>
+                <div className="space-y-6">
+                    <h2 className="text-xl font-bold text-gray-800">{t('patient.availableDoctors', 'Available Doctors & Specialists')}</h2>
 
-                    { }
-                    <Box sx={{ mb: 4 }}>
-                        <Grid container spacing={2}>
-                            <Grid size={{ xs: 12, md: 8 }}>
-                                <TextField
-                                    fullWidth
-                                    variant="outlined"
-                                    placeholder={t('patient.searchPlaceholder', 'Search doctor name...')}
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    InputProps={{
-                                        startAdornment: (
-                                            <InputAdornment position="start">
-                                                <SearchIcon sx={{ color: '#00796b' }} />
-                                            </InputAdornment>
-                                        ),
-                                    }}
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            borderRadius: 3,
-                                            '&.Mui-focused fieldset': {
-                                                borderColor: '#00796b',
-                                            },
-                                        },
-                                    }}
-                                />
-                            </Grid>
-                            <Grid size={{ xs: 12, md: 4 }}>
-                                <FormControl fullWidth variant="outlined">
-                                    <InputLabel id="specialty-select-label" sx={{ color: '#00796b', '&.Mui-focused': { color: '#00796b' } }}>
-                                        {t('patient.specialtyFilter', 'Filter by Specialty')}
-                                    </InputLabel>
-                                    <Select
-                                        labelId="specialty-select-label"
-                                        value={selectedSpecialty}
-                                        onChange={(e) => setSelectedSpecialty(e.target.value)}
-                                        label={t('patient.specialtyFilter', 'Filter by Specialty')}
-                                        sx={{
-                                            borderRadius: 3,
-                                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                                borderColor: '#00796b',
-                                            },
-                                        }}
-                                    >
-                                        <MenuItem value="">
-                                            <em>{t('patient.allSpecialties', 'All Specialties')}</em>
-                                        </MenuItem>
-                                        {specialties.map((spec) => (
-                                            <MenuItem key={spec.id} value={spec.name}>
-                                                {spec.name}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-                            </Grid>
-                        </Grid>
-                    </Box>
+                    {/* Search & Filter Controls */}
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="flex-1 relative">
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">🔍</span>
+                            <input
+                                type="text"
+                                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-hospital transition-all"
+                                placeholder={t('patient.searchPlaceholder', 'Search doctor name...')}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <div className="w-full md:w-64">
+                            <select
+                                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-hospital transition-all text-gray-700 bg-no-repeat"
+                                value={selectedSpecialty}
+                                onChange={(e) => setSelectedSpecialty(e.target.value)}
+                            >
+                                <option value="">{t('patient.allSpecialties', 'All Specialties')}</option>
+                                {specialties.map((spec) => (
+                                    <option key={spec.id} value={spec.id}>{spec.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
 
+                    {/* Doctors Grid */}
                     {filteredDoctors.length === 0 ? (
-                        <Typography variant="body1" color="textSecondary">
-                            {t('patient.noDoctors', 'No registered doctors available right now.')}
-                        </Typography>
+                        <p className="text-gray-500">{t('patient.noDoctors', 'No registered doctors available right now.')}</p>
                     ) : (
-                        <Grid container spacing={3}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {filteredDoctors.map((docItem) => {
-                                const doctorSlots = allSlots.filter((s) => s.doctorId === docItem.id);
+                                const doctorSlots = allSlots.filter((s) => s.doctor === docItem.id);
                                 const uniqueDates = [...new Set(doctorSlots.map((s) => s.date))];
                                 const currentSelectedDate = selectedDayForDoc[docItem.id] || uniqueDates[0];
                                 const slotsForSelectedDay = doctorSlots.filter((s) => s.date === currentSelectedDate);
 
-                                const getDayAndDateLabel = (dateStr) => {
-                                    const s = doctorSlots.find((slot) => slot.date === dateStr);
-                                    if (!s) return dateStr;
-                                    const translatedDay = translateDayName(s.day, t);
-                                    return `${translatedDay} (${dateStr})`;
-                                };
-
                                 return (
-                                    <Grid size={{ xs: 12, md: 6 }} key={docItem.id}>
-                                        <Card elevation={3} sx={{ borderRadius: 3, height: '100%' }}>
-                                            <CardContent>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                                                    <Avatar sx={{ bgcolor: '#00796b', width: 56, height: 56 }}>
-                                                        {(docItem.name || 'D').charAt(0).toUpperCase()}
-                                                    </Avatar>
-                                                    <Box>
-                                                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                                            Dr. {docItem.name || 'Doctor'}
-                                                        </Typography>
-                                                        <Typography variant="caption" sx={{ fontWeight: '600', color: '#00796b' }}>
-                                                            {docItem.profile?.specialty || t('patient.specialist', 'Specialist')}
-                                                        </Typography>
-                                                        <Typography variant="body2" color="textSecondary">
-                                                            Fee: {Number(docItem.profile?.consultationFee) || 250} EGP
-                                                        </Typography>
-                                                    </Box>
-                                                </Box>
+                                    <div key={docItem.id} className="bg-white rounded-2xl border border-gray-100 shadow-xs hover:shadow-sm transition-all p-6 flex flex-col justify-between">
+                                        <div>
+                                            {/* Doctor Meta Header */}
+                                            <div className="flex items-center gap-4 mb-4">
+                                                <div className="w-14 h-14 rounded-full bg-hospital-light flex items-center justify-center text-hospital text-xl font-bold shrink-0">
+                                                    {docItem.first_name?.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-gray-800">Dr. {docItem.first_name} {docItem.last_name}</h3>
+                                                    <span className="text-xs font-semibold px-2.5 py-0.5 bg-teal-50 text-hospital rounded-full inline-block mt-0.5">
+                                                        {specialties.find(s => s.id === docItem.doctor_profile?.specialty)?.name || t('patient.specialist', 'Specialist')}
+                                                    </span>
+                                                    <p className="text-sm text-gray-500 mt-1">Fee: <span className="font-bold text-gray-700">{Number(docItem.doctor_profile?.consultation_fee) || 250} EGP</span></p>
+                                                </div>
+                                            </div>
 
-                                                <Button
-                                                    variant="outlined"
-                                                    size="small"
-                                                    startIcon={<InfoOutlinedIcon />}
-                                                    onClick={() => handleOpenDoctorProfile(docItem)}
-                                                    sx={{ mb: 2, borderColor: '#006d77', color: '#006d77' }}
-                                                >
-                                                    View Doctor Details
-                                                </Button>
+                                            {/* Details Link */}
+                                            <button
+                                                onClick={() => { setSelectedDoctorProfile(docItem); setDoctorModalOpen(true); }}
+                                                className="text-xs text-hospital-hover hover:text-hospital-dark font-medium underline mb-4 inline-block cursor-pointer"
+                                            >
+                                                ℹ️ View Doctor Bio & Details
+                                            </button>
 
-                                                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#555', mb: 1 }}>
-                                                    {t('patient.chooseDay', 'Choose Day:')}
-                                                </Typography>
+                                            {/* Select Date Section */}
+                                            <div className="mb-4">
+                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{t('patient.chooseDay', 'Choose Day:')}</h4>
                                                 {uniqueDates.length === 0 ? (
-                                                    <Typography variant="caption" color="error" display="block" sx={{ mb: 2 }}>
-                                                        {t('doctor.noDoctorRecords', 'No working days scheduled yet.')}
-                                                    </Typography>
+                                                    <span className="text-xs text-red-500">{t('doctor.noDoctorRecords', 'No working days scheduled yet.')}</span>
                                                 ) : (
-                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
+                                                    <div className="flex flex-wrap gap-2">
                                                         {uniqueDates.map((dateVal) => (
-                                                            <Chip
+                                                            <button
                                                                 key={dateVal}
-                                                                label={getDayAndDateLabel(dateVal)}
-                                                                clickable
-                                                                variant={currentSelectedDate === dateVal ? 'filled' : 'outlined'}
-                                                                sx={{
-                                                                    bgcolor: currentSelectedDate === dateVal ? '#00796b' : 'transparent',
-                                                                    color: currentSelectedDate === dateVal ? '#fff' : '#00796b',
-                                                                    borderColor: '#00796b',
-                                                                    fontWeight: 'bold',
-                                                                    '&:hover': {
-                                                                        bgcolor: currentSelectedDate === dateVal ? '#004d40' : '#e0f2f1',
-                                                                    },
-                                                                }}
                                                                 onClick={() => setSelectedDayForDoc({ ...selectedDayForDoc, [docItem.id]: dateVal })}
-                                                            />
-                                                        ))}
-                                                    </Box>
-                                                )}
-
-                                                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#00796b', mb: 1.5 }}>
-                                                    {t('patient.availableTimes', 'Available Times:')}
-                                                </Typography>
-                                                {slotsForSelectedDay.length === 0 ? (
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        {t('patient.selectDay', 'Select a day to view slots.')}
-                                                    </Typography>
-                                                ) : (
-                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-                                                        {slotsForSelectedDay.map((slot) => (
-                                                            <Button
-                                                                key={slot.id}
-                                                                variant="outlined"
-                                                                size="small"
-                                                                onClick={() => handleBookSlot(docItem, slot)}
-                                                                sx={{
-                                                                    borderRadius: '6px',
-                                                                    borderColor: '#00796b',
-                                                                    color: '#00796b',
-                                                                    fontWeight: '500',
-                                                                    textTransform: 'none',
-                                                                    '&:hover': { bgcolor: '#00796b', color: '#fff', borderColor: '#00796b' },
-                                                                }}
+                                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${currentSelectedDate === dateVal ? 'bg-hospital border-hospital text-white' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
                                                             >
-                                                                Pay & Book {slot.time.split(' - ')[0]}
-                                                            </Button>
+                                                                {dateVal}
+                                                            </button>
                                                         ))}
-                                                    </Box>
+                                                    </div>
                                                 )}
-                                            </CardContent>
-                                        </Card>
-                                    </Grid>
+                                            </div>
+                                        </div>
+
+                                        {/* Available Times */}
+                                        <div className="mt-2">
+                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{t('patient.availableTimes', 'Available Times:')}</h4>
+                                            {slotsForSelectedDay.length === 0 ? (
+                                                <p className="text-xs text-gray-400">{t('patient.selectDay', 'Select a day to view slots.')}</p>
+                                            ) : (
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                    {slotsForSelectedDay.map((slot) => (
+                                                        <button
+                                                            key={slot.id}
+                                                            onClick={() => handleBookSlot(docItem, slot)}
+                                                            className="px-3 py-2 border border-hospital text-hospital text-xs font-semibold rounded-xl text-center hover:bg-hospital hover:text-white transition-all cursor-pointer"
+                                                        >
+                                                            ⏱️ {slot.start_time}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 );
                             })}
-                        </Grid>
+                        </div>
                     )}
-                </Box>
+                </div>
             )}
 
+            {/* TAB 1: BOOKING HISTORY */}
             {activeTab === 1 && (
-                <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#333', mb: 3 }}>
-                        {t('patient.yourHistory', 'Your Booking History')}
-                    </Typography>
-                    <TableContainer>
-                        <Table>
-                            <TableHead sx={{ bgcolor: '#f4f7f6' }}>
-                                <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>{t('patient.doctorName', 'Doctor Name')}</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>{t('doctor.dayTime', 'Day & Time')}</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>{t('doctor.status', 'Status')}</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>Payment</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: '#00796b' }}>{t('patient.medicalPrescription', 'Medical Prescription')}</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-6 overflow-hidden">
+                    <h2 className="text-xl font-bold text-gray-800 mb-6">{t('patient.yourHistory', 'Your Booking History')}</h2>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50 border-b border-gray-100 text-hospital text-xs font-bold uppercase tracking-wider">
+                                    <th className="p-4">{t('patient.doctorName', 'Doctor Name')}</th>
+                                    <th className="p-4">{t('doctor.dayTime', 'Day & Time')}</th>
+                                    <th className="p-4">{t('doctor.status', 'Status')}</th>
+                                    <th className="p-4">Payment</th>
+                                    <th className="p-4">Prescription</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-sm divide-y divide-gray-100">
                                 {myAppointments.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={5} align="center" sx={{ py: 4, color: '#999' }}>
+                                    <tr>
+                                        <td colSpan={5} className="p-8 text-center text-gray-400">
                                             {t('doctor.noAppointments', "You haven't booked any appointments yet.")}
-                                        </TableCell>
-                                    </TableRow>
+                                        </td>
+                                    </tr>
                                 ) : (
                                     myAppointments.map((app) => (
-                                        <TableRow key={app.id} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
-                                            <TableCell sx={{ fontWeight: '500' }}>Dr. {app.doctorName}</TableCell>
-                                            <TableCell>
-                                                {`${translateDayName(app.day, t)} ${app.date ? `(${app.date})` : ''} - [${app.time.split(' - ')[0]}]`}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    label={t('statuses.' + app.status.toLowerCase(), app.status)}
-                                                    color={app.status === 'Completed' ? 'success' : app.status === 'Cancelled' ? 'error' : 'warning'}
-                                                    size="small"
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                {app.paymentStatus === 'Paid' ? (
-                                                    <Chip label="Paid" color="success" size="small" />
-                                                ) : (
-                                                    <Button
-                                                        size="small"
-                                                        variant="outlined"
-                                                        startIcon={<CreditCardIcon />}
-                                                        onClick={() => handlePayAppointment(app)}
-                                                        disabled={app.status === 'Cancelled'}
-                                                        sx={{ borderColor: '#006d77', color: '#006d77' }}
+                                        <tr key={app.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="p-4 font-semibold text-gray-800">Dr. {app.doctor_name}</td>
+                                            <td className="p-4 text-gray-600">{app.slot_details?.date} ({app.slot_details?.start_time})</td>
+                                            <td className="p-4">
+                                                <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${app.status === 'Completed' ? 'bg-green-50 text-green-700' : app.status === 'Pending' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>
+                                                    {app.status}
+                                                </span>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className="px-2.5 py-1 text-xs font-medium rounded-md bg-teal-50 border border-teal-100 text-hospital">
+                                                    {app.payment_status} ({app.consultation_fee} EGP)
+                                                </span>
+                                            </td>
+                                            <td className="p-4">
+                                                {app.prescription ? (
+                                                    <button
+                                                        onClick={() => { setSelectedRecord(app); setOpenModal(true); }}
+                                                        className="text-hospital hover:text-hospital-dark font-bold hover:underline cursor-pointer"
                                                     >
-                                                        Pay {Number(app.consultationFee) || 250} EGP
-                                                    </Button>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                {app.status === 'Completed' && app.medicalRecord ? (
-                                                    <Button
-                                                        size="small"
-                                                        variant="contained"
-                                                        sx={{ bgcolor: '#00796b' }}
-                                                        onClick={() => handleOpenRecord(app.medicalRecord)}
-                                                    >
-                                                        {t('patient.medicalPrescription', 'View Prescription')} 📄
-                                                    </Button>
+                                                        View Prescription
+                                                    </button>
                                                 ) : (
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        {t('patient.appointmentAvailableAfter', 'Available after visit')}
-                                                    </Typography>
+                                                    <span className="text-gray-400 text-xs">No prescription yet</span>
                                                 )}
-                                            </TableCell>
-                                        </TableRow>
+                                            </td>
+                                        </tr>
                                     ))
                                 )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Paper>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             )}
 
-            <Modal open={openModal} onClose={() => setOpenModal(false)}>
-                <Box sx={modalStyle}>
-                    {selectedRecord && (
-                        <>
-                            <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00796b', mb: 2 }}>
-                                {t('patient.officialPrescription', 'Medical Prescription Details')}
-                            </Typography>
-                            <Typography variant="body1" sx={{ mb: 1 }}><strong>{t('doctor.dateOfVisit', 'Date')}:</strong> {selectedRecord.date}</Typography>
-                            <Typography variant="body1" sx={{ mb: 1 }}><strong>{t('patient.diagnosisLabel', 'Diagnosis')}:</strong> {selectedRecord.diagnosis}</Typography>
-                            <Typography variant="body1" sx={{ mb: 3 }}><strong>{t('patient.prescriptionLabel', 'Prescription')}:</strong> {selectedRecord.prescription}</Typography>
-                            <Button fullWidth variant="outlined" sx={{ borderColor: '#00796b', color: '#00796b' }} onClick={() => setOpenModal(false)}>
-                                {t('patient.close', 'Close')}
-                            </Button>
-                        </>
-                    )}
-                </Box>
-            </Modal>
-            <Modal open={doctorModalOpen} onClose={() => setDoctorModalOpen(false)}>
-                <Box sx={{ ...modalStyle, width: { xs: '92vw', sm: 520 } }}>
-                    {selectedDoctorProfile && (
-                        <>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                                <Avatar sx={{ bgcolor: '#006d77', width: 58, height: 58 }}>
-                                    {selectedDoctorProfile.name?.charAt(0)?.toUpperCase() || 'D'}
-                                </Avatar>
-                                <Box>
-                                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#102a43' }}>
-                                        Dr. {selectedDoctorProfile.name}
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ color: '#006d77', fontWeight: 700 }}>
-                                        {selectedDoctorProfile.profile?.specialty || t('patient.specialist', 'Specialist')}
-                                    </Typography>
-                                </Box>
-                            </Box>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
-                                {selectedDoctorProfile.profile?.bio || 'No bio added yet.'}
-                            </Typography>
-                            <Grid container spacing={2} sx={{ mb: 3 }}>
-                                <Grid size={{ xs: 12, sm: 6 }}>
-                                    <Typography variant="caption" color="textSecondary">Consultation Fee</Typography>
-                                    <Typography sx={{ fontWeight: 700 }}>
-                                        {Number(selectedDoctorProfile.profile?.consultationFee) || 250} EGP
-                                    </Typography>
-                                </Grid>
-                                <Grid size={{ xs: 12, sm: 6 }}>
-                                    <Typography variant="caption" color="textSecondary">Clinic Location</Typography>
-                                    <Typography sx={{ fontWeight: 700 }}>
-                                        {selectedDoctorProfile.profile?.location || 'Not provided'}
-                                    </Typography>
-                                </Grid>
-                                <Grid size={{ xs: 12, sm: 6 }}>
-                                    <Typography variant="caption" color="textSecondary">Phone</Typography>
-                                    <Typography sx={{ fontWeight: 700 }}>
-                                        {selectedDoctorProfile.profile?.phone || 'Not provided'}
-                                    </Typography>
-                                </Grid>
-                                <Grid size={{ xs: 12, sm: 6 }}>
-                                    <Typography variant="caption" color="textSecondary">Email</Typography>
-                                    <Typography sx={{ fontWeight: 700, wordBreak: 'break-word' }}>
-                                        {selectedDoctorProfile.email || 'Not provided'}
-                                    </Typography>
-                                </Grid>
-                            </Grid>
-                            <Button fullWidth variant="contained" onClick={() => setDoctorModalOpen(false)}>
-                                {t('common.close', 'Close')}
-                            </Button>
-                        </>
-                    )}
-                </Box>
-            </Modal>
-        </Container>
+            {/* MODAL: MEDICAL PRESCRIPTION */}
+            {openModal && selectedRecord && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl transition-all">
+                        <h3 className="text-lg font-bold text-hospital mb-4">Medical Prescription</h3>
+                        <div className="space-y-2 text-sm text-gray-600">
+                            <p><strong>Doctor:</strong> Dr. {selectedRecord.doctor_name}</p>
+                            <p><strong>Date:</strong> {selectedRecord.slot_details?.date}</p>
+                            <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl mt-4 whitespace-pre-line text-gray-800 font-medium">
+                                {selectedRecord.prescription}
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setOpenModal(false)}
+                            className="w-full mt-6 bg-hospital hover:bg-hospital-dark text-white font-bold py-3 rounded-xl transition-all shadow-xs cursor-pointer"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: DOCTOR BIO & DETAILS */}
+            {doctorModalOpen && selectedDoctorProfile && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl transition-all">
+                        <h3 className="text-lg font-bold text-hospital mb-4">Doctor Profile Details</h3>
+                        <div className="space-y-3 text-sm text-gray-700">
+                            <p><strong>Name:</strong> Dr. {selectedDoctorProfile.first_name} {selectedDoctorProfile.last_name}</p>
+                            <p><strong>Experience:</strong> {selectedDoctorProfile.doctor_profile?.experience_years || 0} Years</p>
+                            <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Biography</p>
+                                <p className="text-gray-600 leading-relaxed">{selectedDoctorProfile.doctor_profile?.bio || 'No biography provided.'}</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setDoctorModalOpen(false)}
+                            className="w-full mt-6 bg-hospital hover:bg-hospital-dark text-white font-bold py-3 rounded-xl transition-all shadow-xs cursor-pointer"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };

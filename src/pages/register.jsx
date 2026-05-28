@@ -1,16 +1,10 @@
 import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import { authAPI } from '../services/api'; 
 import Swal from 'sweetalert2';
-import {
-  Grid, Box, Paper, Avatar, Typography, TextField, Button,
-  RadioGroup, FormControlLabel, Radio, FormLabel
-} from '@mui/material';
-import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import { useLanguage } from '../context/LanguageContext';
 
 const Register = () => {
-  const { register } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
 
@@ -19,6 +13,7 @@ const Register = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('patient');
+  const [loading, setLoading] = useState(false); 
 
   const Toast = Swal.mixin({
     toast: true,
@@ -51,186 +46,174 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validateForm() || loading) return;
+
+    setLoading(true);
+
+    const nameParts = name.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || 'User';
+
+    const userData = {
+      username: email, 
+      email: email,
+      password: password,
+      role: role,
+      first_name: firstName,
+      last_name: lastName,
+      phone: ''
+    };
 
     try {
-      await register(email, password, name, role);
+      await authAPI.register(userData);
+      
       Swal.fire({
-        title: t('register.toast.successTitle'),
-        text: t('register.toast.successText'),
+        title: 'Account Registered',
+        text: 'Please check your email. We have sent a verification code (OTP) to activate your account.',
         icon: 'success',
         confirmButtonColor: '#00796b',
-        confirmButtonText: t('login.signIn'),
-      }).then((result) => {
-        if (result.isConfirmed) navigate('/');
+        confirmButtonText: 'Enter OTP',
+      }).then(() => {
+        navigate('/verify-otp', { state: { email: email } });
       });
     } catch (err) {
-      if (err.code === 'auth/email-already-in-use') {
-        Toast.fire({ icon: 'error', title: t('register.toast.emailInUse') });
-      } else {
-        Toast.fire({ icon: 'error', title: t('register.toast.failed') });
-      }
+      console.error(err);
+      Toast.fire({ 
+        icon: 'error', 
+        title: err.response?.data?.error || err.message || t('register.toast.failed') 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Grid container component="main" sx={{ height: '100vh' }}>
-      <Grid
-        item
-        xs={false}
-        sm={4}
-        md={7}
-        sx={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&w=1200&q=80)',
-          backgroundRepeat: 'no-repeat',
-          backgroundColor: (theme) => theme.palette.mode === 'light' ? theme.palette.grey[50] : theme.palette.grey[900],
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          position: 'relative',
-          display: { xs: 'none', sm: 'flex' },
-          alignItems: 'center',
-          justifyContent: 'center',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            background: 'linear-gradient(135deg, rgba(0, 77, 64, 0.85) 0%, rgba(0, 121, 107, 0.6) 100%)',
-          },
-        }}
+    <div className="flex h-screen w-screen overflow-hidden bg-gray-50 font-sans">
+      
+      <div 
+        className="hidden sm:flex sm:w-4/12 md:w-7/12 bg-cover bg-center relative items-center justify-center p-12"
+        style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&w=1200&q=80)' }}
       >
-        <Box sx={{ position: 'relative', color: '#fff', px: 6, textAlign: 'left', maxWidth: '600px' }}>
-          <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', mb: 2, letterSpacing: 1 }}>
+        <div className="absolute inset-0 bg-gradient-to-br from-hospital-dark/85 to-hospital/60" />
+        <div className="relative z-10 max-w-xl text-white text-left">
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4 drop-shadow-xs">
             {t('register.title')}
-          </Typography>
-          <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 'normal', lineHeight: 1.6 }}>
+          </h1>
+          <p className="text-base md:text-lg text-white/95 leading-relaxed font-normal">
             {t('register.subtitle')}
-          </Typography>
-        </Box>
-      </Grid>
+          </p>
+        </div>
+      </div>
 
-      <Grid
-        item
-        xs={12}
-        sm={8}
-        md={5}
-        component={Paper}
-        elevation={0}
-        square
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: '#fafafa',
-          overflowY: 'auto',
-        }}
-      >
-        <Box sx={{ my: 4, mx: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '420px', p: 3, bgcolor: '#fff', borderRadius: 4, boxShadow: '0px 10px 30px rgba(0,0,0,0.04)' }}>
-          <Avatar sx={{ m: 1, bgcolor: '#e0f2f1', width: 60, height: 60, border: '2px solid #00796b' }}>
-            <LocalHospitalIcon sx={{ color: '#00796b', fontSize: 32 }} />
-          </Avatar>
+      <div className="w-full sm:w-8/12 md:w-5/12 flex items-center justify-center p-6 bg-gray-50 overflow-y-auto">
+        <div className="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-gray-200/50 p-8 border border-gray-100 flex flex-col items-center my-auto">
+          
+          <div className="w-14 h-14 rounded-2xl bg-hospital-light border-2 border-hospital flex items-center justify-center mb-3 text-hospital shadow-xs">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </div>
 
-          <Typography component="h1" variant="h4" sx={{ fontWeight: '800', color: '#00796b', mt: 1 }}>
-            {t('register.title')}
-          </Typography>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 2, mt: 0.5 }}>
-            {t('register.subtitle')}
-          </Typography>
+          <h2 className="text-2xl font-black text-hospital tracking-tight">{t('register.title')}</h2>
+          <p className="text-sm text-gray-400 mt-1 mb-6 text-center font-medium">{t('register.subtitle')}</p>
 
-          <Box component="form" onSubmit={handleSubmit} noValidate sx={{ width: '100%' }}>
-            <TextField
-              margin="dense"
-              required
-              fullWidth
-              label={t('register.fullName')}
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
-            />
-            <TextField
-              margin="dense"
-              required
-              fullWidth
-              label={t('register.email')}
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
-            />
-            <TextField
-              margin="dense"
-              required
-              fullWidth
-              label={t('register.password')}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
-            />
-            <TextField
-              margin="dense"
-              required
-              fullWidth
-              label={t('register.confirmPassword')}
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '&.Mui-focused fieldset': { borderColor: '#00796b' } }, '& .MuiInputLabel-root.Mui-focused': { color: '#00796b' } }}
-            />
+          <form onSubmit={handleSubmit} noValidate className="w-full space-y-4">
+            
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block pl-1">{t('register.fullName')}</label>
+              <input
+                type="text"
+                required
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-hospital focus:bg-white transition-all text-sm font-medium text-gray-800"
+              />
+            </div>
 
-            <Box sx={{ mt: 2, mb: 1, p: 1.5, borderRadius: 2, border: '1px solid #e0e0e0', textAlign: 'left' }}>
-              <FormLabel component="legend" sx={{ color: '#00796b', fontWeight: 'bold', fontSize: '0.85rem', mb: 0.5 }}>
-                {t('register.roleLabel')}
-              </FormLabel>
-              <RadioGroup row value={role} onChange={(e) => setRole(e.target.value)}>
-                <FormControlLabel
-                  value="patient"
-                  control={<Radio sx={{ color: '#00796b', '&.Mui-checked': { color: '#00796b' } }} />}
-                  label={<Typography sx={{ fontSize: '0.95rem', fontWeight: 500 }}>{t('register.patient')}</Typography>}
-                />
-                <FormControlLabel
-                  value="doctor"
-                  control={<Radio sx={{ color: '#00796b', '&.Mui-checked': { color: '#00796b' } }} />}
-                  label={<Typography sx={{ fontSize: '0.95rem', fontWeight: 500 }}>{t('register.doctor')}</Typography>}
-                />
-              </RadioGroup>
-            </Box>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block pl-1">{t('register.email')}</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-hospital focus:bg-white transition-all text-sm font-medium text-gray-800"
+              />
+            </div>
 
-            <Button
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block pl-1">{t('register.password')}</label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-hospital focus:bg-white transition-all text-sm font-medium text-gray-800"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block pl-1">{t('register.confirmPassword')}</label>
+              <input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-hospital focus:bg-white transition-all text-sm font-medium text-gray-800"
+              />
+            </div>
+
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2">
+              <span className="text-xs font-bold text-hospital block uppercase tracking-wider">{t('register.roleLabel')}</span>
+              <div className="flex gap-6 pl-1">
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-700">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="patient"
+                    checked={role === 'patient'}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="w-4 h-4 text-hospital border-gray-300 focus:ring-hospital"
+                  />
+                  {t('register.patient')}
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-700">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="doctor"
+                    checked={role === 'doctor'}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="w-4 h-4 text-hospital border-gray-300 focus:ring-hospital"
+                  />
+                  {t('register.doctor')}
+                </label>
+              </div>
+            </div>
+
+            <button
               type="submit"
-              fullWidth
-              variant="contained"
-              sx={{
-                mt: 3,
-                mb: 2,
-                padding: 1.4,
-                bgcolor: '#00796b',
-                '&:hover': { bgcolor: '#004d40', boxShadow: '0px 6px 20px rgba(0, 77, 64, 0.3)' },
-                fontWeight: 'bold',
-                borderRadius: 2.5,
-                textTransform: 'none',
-                fontSize: '1rem',
-                boxShadow: '0px 4px 12px rgba(0, 121, 107, 0.2)',
-              }}
+              disabled={loading}
+              className="w-full mt-4 bg-hospital hover:bg-hospital-dark text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-teal-700/10 hover:shadow-lg hover:shadow-teal-800/20 transition-all text-base cursor-pointer transform active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t('register.signUp')}
-            </Button>
+              {loading ? 'Subscribing...' : t('register.signUp')}
+            </button>
 
-            <Box sx={{ mt: 2, textAlign: 'center' }}>
-              <Typography variant="body2" color="textSecondary">
+            <div className="pt-2 text-center">
+              <p className="text-sm text-gray-500 font-medium">
                 {t('register.existingAccount')}{' '}
-                <Link to="/login" style={{ color: '#00796b', textDecoration: 'none', fontWeight: 'bold' }}>
+                <Link to="/login" className="text-hospital hover:text-hospital-dark font-bold transition-colors ml-1">
                   {t('register.signIn')}
                 </Link>
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-      </Grid>
-    </Grid>
+              </p>
+            </div>
+
+          </form>
+        </div>
+      </div>
+
+    </div>
   );
 };
 

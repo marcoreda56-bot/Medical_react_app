@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import './App.css';
 
-// Pages & Dashboards Imports
 import Login from './pages/login';
 import Register from './pages/register';
 import { Profile } from './pages/Profile.jsx';
@@ -15,8 +14,8 @@ import RoleRoute from './routes/RoleRoute';
 import { DoctorDashBoard } from './dashboards/DoctorDashBoard';
 import { PatientDashBoard } from './dashboards/PatientDashBoard';
 import { AdminDashBoard } from './features/admin/AdminDashBoard';
+import { VerifyOTP } from './pages/VerifyOTP';
 
-// Context & Components Imports
 import { useAuth } from './context/AuthContext';
 import { Navbar } from './components/NavBar.jsx';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
@@ -72,6 +71,9 @@ function AppContent() {
                         )
                     }
                 />
+
+                {/* OTP Verification Route */}
+                <Route path="/verify-otp" element={<VerifyOTP />} />
 
                 {/* Core Protected Routes */}
                 <Route
