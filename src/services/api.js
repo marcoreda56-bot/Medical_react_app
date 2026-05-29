@@ -38,7 +38,7 @@ api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
-        
+
         if (error.response?.status === 401 && !originalRequest._retry) {
             if (isRefreshing) {
                 return new Promise((resolve, reject) => {
@@ -59,13 +59,13 @@ api.interceptors.response.use(
                 if (refreshToken) {
                     const res = await axios.post(`${API_BASE_URL}/auth/refresh/`, { refresh: refreshToken });
                     const newAccessToken = res.data.access;
-                    
+
                     localStorage.setItem('access_token', newAccessToken);
                     originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-                    
+
                     processQueue(null, newAccessToken);
                     isRefreshing = false;
-                    
+
                     return api(originalRequest);
                 }
             } catch (refreshError) {
@@ -82,16 +82,16 @@ api.interceptors.response.use(
 
 export const authAPI = {
     login: (username, password) => api.post('/auth/login/', { username, password }),
-    register: (userData) => api.post('/register/', userData), 
+    register: (userData) => api.post('/register/', userData),
     verifyOTP: (email, otp) => api.post('/auth/verify-otp/', { email, otp }),
 };
 
 export const doctorAPI = {
     getApprovedDoctors: () => api.get('/doctors/'),
     getMySlots: () => api.get('/slots/'),
-    addSlot: (slotData) => api.post('/slots/', slotData), 
+    addSlot: (slotData) => api.post('/slots/', slotData),
     deleteSlot: (id) => api.delete(`/slots/${id}/`),
-    
+
     getAvailableSlots: (doctorId) => {
         const url = doctorId ? `/slots/available/?doctor_id=${doctorId}` : '/slots/available/';
         return api.get(url);
@@ -102,20 +102,20 @@ export const appointmentAPI = {
     getMyAppointments: () => api.get('/appointments/'),
     getAppointmentDetail: (id) => api.get(`/appointments/${id}/`),
     book: (bookingData) => api.post('/appointments/book/', bookingData),
-    updateAppointment: (id, data) => api.patch(`/appointments/${id}/`, data), 
-    cancelAppointment: (id, reason) => api.post(`/appointments/${id}/cancel/`, { reason }), 
-    approveAppointment: (appId) => api.post(`/appointments/${appId}/approve/`), 
-    completeAppointment: (appId) => api.post(`/appointments/${appId}/complete/`),
+    updateAppointment: (id, data) => api.patch(`/appointments/${id}/`, data),
+    cancelAppointment: (id, reason) => api.post(`/appointments/${id}/cancel/`, { reason }),
+    approveAppointment: (appId) => api.post(`/appointments/${appId}/approve/`),
+    completeAppointment: (appId, data) => api.post(`/appointments/${appId}/complete/`, data),
 };
 
 export const specialtyAPI = {
     getSpecialties: () => api.get('/specialties/'),
-    addSpecialty: (data) => api.post('/specialties/', data), 
+    addSpecialty: (data) => api.post('/specialties/', data),
 };
 
 export const profileAPI = {
     getProfile: () => api.get('/users/me/'),
-    saveProfile: (userData) => api.patch('/users/me/', userData), 
+    saveProfile: (userData) => api.patch('/users/me/', userData),
     getDoctorProfile: () => api.get('/doctor-profiles/me/'),
     saveDoctorProfile: (docData) => api.patch('/doctor-profiles/me/', docData),
 };
