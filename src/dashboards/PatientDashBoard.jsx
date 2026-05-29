@@ -43,9 +43,13 @@ export const PatientDashBoard = () => {
             const slotRes = await doctorAPI.getAvailableSlots();
             setAllSlots(slotRes.data);
 
+            // 🛠️ الفلتر هنا معدل أيضاً بالـ Number لضمان اختيار أول يوم تلقائياً عند تحميل الصفحة
             const initialDays = {};
             docRes.data.forEach((docItem) => {
-                const docSlots = slotRes.data.filter((s) => s.doctor === docItem.id);
+                const docSlots = slotRes.data.filter((s) => {
+                    const sDocId = s.doctor && typeof s.doctor === 'object' ? Number(s.doctor.id) : Number(s.doctor || s.doctor_id);
+                    return sDocId === Number(docItem.id);
+                });
                 if (docSlots.length > 0) {
                     initialDays[docItem.id] = docSlots[0].date;
                 }
@@ -68,13 +72,14 @@ export const PatientDashBoard = () => {
         const doctorName = `${doctor.first_name} ${doctor.last_name}`.trim() || 'Doctor';
         const amount = Number(doctor.doctor_profile?.consultation_fee) || 250;
         const dayLabel = `${slot.date}`;
+        const displayTime = slot.start_time || slot.time?.split(' - ')[0] || slot.time;
 
         const result = await Swal.fire({
-            title: 'Pay & Book Appointment',
+            title: t('patient.payAndBookTitle', 'Pay & Book Appointment'),
             html: `
                 <div style="text-align:left;" class="space-y-3 text-sm text-gray-700">
                     <p><strong>Doctor:</strong> Dr. ${doctorName}</p>
-                    <p><strong>Appointment:</strong> ${dayLabel} (${slot.start_time} - ${slot.end_time})</p>
+                    <p><strong>Appointment:</strong> ${dayLabel} (${displayTime})</p>
                     <p><strong>Amount:</strong> ${amount} EGP</p>
                     <hr class="border-gray-200 my-2" />
                     <input id="payment-card-name" class="swal2-input" placeholder="Cardholder name" style="width:100%; margin: 8px 0;" />
@@ -120,6 +125,31 @@ export const PatientDashBoard = () => {
             } catch (err) {
                 Swal.fire('Booking Failed', err.message || 'This slot might have been locked or already booked.', 'error');
             }
+        }
+    };
+
+    const handleCancelAppointment = async (app) => {
+        const result = await Swal.fire({
+            title: t('patient.cancelConfirmTitle', 'Cancel Appointment?'),
+            text: t('patient.cancelConfirmText', 'Are you sure you want to cancel your reservation with Dr. ') + app.doctor_name + '?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#94a3b8',
+            confirmButtonText: t('patient.yesCancel', 'Yes, cancel it'),
+            cancelButtonText: t('doctor.cancelBookBtn', 'Cancel'),
+            customClass: { confirmButton: 'cursor-pointer rounded-xl', cancelButton: 'cursor-pointer rounded-xl' }
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            await appointmentAPI.updateAppointment(app.id, { status: 'Cancelled' });
+            Toast.fire({ icon: 'success', title: t('notifications.cancelSuccess', 'Appointment cancelled successfully.') });
+            loadPatientData();
+        } catch (err) {
+            console.error('Error cancelling appointment:', err);
+            Toast.fire({ icon: 'error', title: err.message || t('notifications.cancelFailed', 'Failed to cancel the appointment.') });
         }
     };
 
@@ -175,7 +205,7 @@ export const PatientDashBoard = () => {
                         </div>
                         <div className="w-full md:w-64">
                             <select
-                                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-hospital transition-all text-gray-700 bg-no-repeat"
+                                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-hospital transition-all text-gray-700 bg-no-repeat cursor-pointer"
                                 value={selectedSpecialty}
                                 onChange={(e) => setSelectedSpecialty(e.target.value)}
                             >
@@ -193,7 +223,13 @@ export const PatientDashBoard = () => {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {filteredDoctors.map((docItem) => {
-                                const doctorSlots = allSlots.filter((s) => s.doctor === docItem.id);
+                                
+                                // 🛠️ التصليح القاتل: تحويل مقارنة الدكاترة والـ slots لنفس الـ Type (Number)
+                                const doctorSlots = allSlots.filter((s) => {
+                                    const sDocId = s.doctor && typeof s.doctor === 'object' ? Number(s.doctor.id) : Number(s.doctor || s.doctor_id);
+                                    return sDocId === Number(docItem.id);
+                                });
+
                                 const uniqueDates = [...new Set(doctorSlots.map((s) => s.date))];
                                 const currentSelectedDate = selectedDayForDoc[docItem.id] || uniqueDates[0];
                                 const slotsForSelectedDay = doctorSlots.filter((s) => s.date === currentSelectedDate);
@@ -257,7 +293,8 @@ export const PatientDashBoard = () => {
                                                             onClick={() => handleBookSlot(docItem, slot)}
                                                             className="px-3 py-2 border border-hospital text-hospital text-xs font-semibold rounded-xl text-center hover:bg-hospital hover:text-white transition-all cursor-pointer"
                                                         >
-                                                            ⏱️ {slot.start_time}
+                                                            {/* ⏱️ التعديل المرن: سحب وقت البداية فقط من الحقل المدمج (10:00) */}
+                                                            ⏱️ {slot.start_time || slot.time?.split(' - ')[0] || slot.time}
                                                         </button>
                                                     ))}
                                                 </div>
@@ -283,7 +320,7 @@ export const PatientDashBoard = () => {
                                     <th className="p-4">{t('doctor.dayTime', 'Day & Time')}</th>
                                     <th className="p-4">{t('doctor.status', 'Status')}</th>
                                     <th className="p-4">Payment</th>
-                                    <th className="p-4">Prescription</th>
+                                    <th className="p-4 text-center">Actions / Prescription</th>
                                 </tr>
                             </thead>
                             <tbody className="text-sm divide-y divide-gray-100">
@@ -297,7 +334,7 @@ export const PatientDashBoard = () => {
                                     myAppointments.map((app) => (
                                         <tr key={app.id} className="hover:bg-gray-50/50 transition-colors">
                                             <td className="p-4 font-semibold text-gray-800">Dr. {app.doctor_name}</td>
-                                            <td className="p-4 text-gray-600">{app.slot_details?.date} ({app.slot_details?.start_time})</td>
+                                            <td className="p-4 text-gray-600">{app.slot_details?.date} ({app.slot_details?.start_time || app.slot_details?.time})</td>
                                             <td className="p-4">
                                                 <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${app.status === 'Completed' ? 'bg-green-50 text-green-700' : app.status === 'Pending' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>
                                                     {app.status}
@@ -308,16 +345,25 @@ export const PatientDashBoard = () => {
                                                     {app.payment_status} ({app.consultation_fee} EGP)
                                                 </span>
                                             </td>
-                                            <td className="p-4">
+                                            <td className="p-4 text-center flex items-center justify-center gap-3">
                                                 {app.prescription ? (
                                                     <button
                                                         onClick={() => { setSelectedRecord(app); setOpenModal(true); }}
                                                         className="text-hospital hover:text-hospital-dark font-bold hover:underline cursor-pointer"
                                                     >
-                                                        View Prescription
+                                                        {t('patient.viewPrescription', 'View Prescription')}
                                                     </button>
                                                 ) : (
-                                                    <span className="text-gray-400 text-xs">No prescription yet</span>
+                                                    <span className="text-gray-400 text-xs italic">{t('patient.noPrescription', 'No prescription yet')}</span>
+                                                )}
+
+                                                {(app.status === 'Pending' || app.status === 'Confirmed') && (
+                                                    <button
+                                                        onClick={() => handleCancelAppointment(app)}
+                                                        className="px-3 py-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                                                    >
+                                                        {t('patient.cancelBtn', 'Cancel')}
+                                                    </button>
                                                 )}
                                             </td>
                                         </tr>
