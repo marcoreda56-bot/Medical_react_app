@@ -1,123 +1,57 @@
-import axios from 'axios';
+import axiosInstance from './axios';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+export default axiosInstance;
 
-const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-        'Content-Type': 'application/json',
-    },
-});
-
-let isRefreshing = false;
-let failedQueue = [];
-
-const processQueue = (error, token = null) => {
-    failedQueue.forEach((prom) => {
-        if (error) {
-            prom.reject(error);
-        } else {
-            prom.resolve(token);
-        }
-    });
-    failedQueue = [];
-};
-
-api.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem('access_token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
-);
-
-api.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
-
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            if (isRefreshing) {
-                return new Promise((resolve, reject) => {
-                    failedQueue.push({ resolve, reject });
-                })
-                    .then((token) => {
-                        originalRequest.headers.Authorization = `Bearer ${token}`;
-                        return api(originalRequest);
-                    })
-                    .catch((err) => Promise.reject(err));
-            }
-
-            originalRequest._retry = true;
-            isRefreshing = true;
-
-            try {
-                const refreshToken = localStorage.getItem('refresh_token');
-                if (refreshToken) {
-                    const res = await axios.post(`${API_BASE_URL}/auth/refresh/`, { refresh: refreshToken });
-                    const newAccessToken = res.data.access;
-
-                    localStorage.setItem('access_token', newAccessToken);
-                    originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-
-                    processQueue(null, newAccessToken);
-                    isRefreshing = false;
-
-                    return api(originalRequest);
-                }
-            } catch (refreshError) {
-                processQueue(refreshError, null);
-                isRefreshing = false;
-                localStorage.clear();
-                window.location.href = '/login';
-                return Promise.reject(refreshError);
-            }
-        }
-        return Promise.reject(error);
-    }
-);
-
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 export const authAPI = {
-    login: (username, password) => api.post('/auth/login/', { username, password }),
-    register: (userData) => api.post('/register/', userData),
-    verifyOTP: (email, otp) => api.post('/auth/verify-otp/', { email, otp }),
+    // ✅ login with email field
+    login: (email, password) =>
+        axiosInstance.post('/auth/login/', { email, password }),
+
+    register: (userData) =>
+        axiosInstance.post('/register/', userData),
+
+    verifyOTP: (email, otp) =>
+        axiosInstance.post('/auth/verify-otp/', { email, otp }),
 };
 
+// ─── Doctors ──────────────────────────────────────────────────────────────────
 export const doctorAPI = {
-    getApprovedDoctors: () => api.get('/doctors/'),
-    getMySlots: () => api.get('/slots/'),
-    addSlot: (slotData) => api.post('/slots/', slotData),
-    deleteSlot: (id) => api.delete(`/slots/${id}/`),
-
-    getAvailableSlots: (doctorId) => {
-        const url = doctorId ? `/slots/available/?doctor_id=${doctorId}` : '/slots/available/';
-        return api.get(url);
-    },
+    getApprovedDoctors: () => axiosInstance.get('/doctors/'),
+    getAvailableSlots: (doctorId) =>
+        axiosInstance.get('/slots/available/', {
+            params: doctorId ? { doctor_id: doctorId } : {},
+        }),
+    getMySlots: () => axiosInstance.get('/slots/'),
+    addSlot: (slotData) => axiosInstance.post('/slots/', slotData),
+    deleteSlot: (slotId) => axiosInstance.delete(`/slots/${slotId}/`),
 };
 
+// ─── Appointments ─────────────────────────────────────────────────────────────
 export const appointmentAPI = {
-    getMyAppointments: () => api.get('/appointments/'),
-    getAppointmentDetail: (id) => api.get(`/appointments/${id}/`),
-    book: (bookingData) => api.post('/appointments/book/', bookingData),
-    updateAppointment: (id, data) => api.patch(`/appointments/${id}/`, data),
-    cancelAppointment: (id, reason) => api.post(`/appointments/${id}/cancel/`, { reason }),
-    approveAppointment: (appId) => api.post(`/appointments/${appId}/approve/`),
-    completeAppointment: (appId, data) => api.post(`/appointments/${appId}/complete/`, data),
+    getMyAppointments: () => axiosInstance.get('/appointments/'),
+    getUpcoming: () => axiosInstance.get('/appointments/upcoming/'),
+    getPast: () => axiosInstance.get('/appointments/past/'),
+    book: (data) => axiosInstance.post('/appointments/book/', data),
+    approve: (id, doctorNotes = '') =>
+        axiosInstance.post(`/appointments/${id}/approve/`, { doctor_notes: doctorNotes }),
+    reject: (id, doctorNotes = '') =>
+        axiosInstance.post(`/appointments/${id}/reject/`, { doctor_notes: doctorNotes }),
+    cancel: (id, reason = '') =>
+        axiosInstance.post(`/appointments/${id}/cancel/`, { reason }),
+    complete: (id, data) =>
+        axiosInstance.post(`/appointments/${id}/complete/`, data),
 };
 
+// ─── Specialties ──────────────────────────────────────────────────────────────
 export const specialtyAPI = {
-    getSpecialties: () => api.get('/specialties/'),
-    addSpecialty: (data) => api.post('/specialties/', data),
+    getSpecialties: () => axiosInstance.get('/specialties/'),
 };
 
+// ─── Profiles ─────────────────────────────────────────────────────────────────
 export const profileAPI = {
-    getProfile: () => api.get('/users/me/'),
-    saveProfile: (userData) => api.patch('/users/me/', userData),
-    getDoctorProfile: () => api.get('/doctor-profiles/me/'),
-    saveDoctorProfile: (docData) => api.patch('/doctor-profiles/me/', docData),
+    getDoctorProfile: () => axiosInstance.get('/doctor-profiles/me/'),
+    saveDoctorProfile: (data) => axiosInstance.patch('/doctor-profiles/me/', data),
+    getPatientProfile: () => axiosInstance.get('/patient-profiles/me/'),
+    savePatientProfile: (data) => axiosInstance.patch('/patient-profiles/me/', data),
 };
-
-export default api;
