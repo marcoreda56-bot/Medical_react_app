@@ -7,7 +7,6 @@ const axiosInstance = axios.create({
     },
 });
 
-// ─── Request interceptor: attach token ───────────────────────────────────────
 axiosInstance.interceptors.request.use((config) => {
     const token = localStorage.getItem('access_token');
     if (token) {
@@ -16,13 +15,11 @@ axiosInstance.interceptors.request.use((config) => {
     return config;
 });
 
-// ─── Response interceptor: refresh token on 401 ──────────────────────────────
 axiosInstance.interceptors.response.use(
     (response) => response,
     async (error) => {
         const original = error.config;
 
-        // ✅ Don't retry login/refresh endpoints — avoids infinite redirect loop
         const isAuthEndpoint =
             original.url.includes('/auth/login/') ||
             original.url.includes('/auth/refresh/') ||
@@ -38,6 +35,7 @@ axiosInstance.interceptors.response.use(
                     'http://localhost:8000/api/auth/refresh/',
                     { refresh }
                 );
+                
                 localStorage.setItem('access_token', res.data.access);
                 original.headers.Authorization = `Bearer ${res.data.access}`;
                 return axiosInstance(original);
