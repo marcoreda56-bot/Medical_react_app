@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { doctorAPI, appointmentAPI, specialtyAPI } from '../services/api';
 import Swal from 'sweetalert2';
 
-// ─── Timezone-safe helper ─────────────────────────────────────────────────────
 const toLocalDateStr = (date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -156,7 +155,6 @@ export const PatientDashBoard = () => {
         }
     };
 
-    // ✅ Fix 1: use cancelAppointment endpoint (POST) not updateAppointment (PATCH)
     const handleCancelAppointment = async (app) => {
         const result = await Swal.fire({
             title: 'Cancel Appointment?',
@@ -180,7 +178,6 @@ export const PatientDashBoard = () => {
         }
     };
 
-    // ✅ Fix 2: compare specialty as number (API returns number IDs)
     const filteredDoctors = doctors.filter((docItem) => {
         const fullName = `${docItem.first_name} ${docItem.last_name}`.toLowerCase();
         const matchesSearch =
@@ -191,7 +188,6 @@ export const PatientDashBoard = () => {
         return matchesSearch && matchesSpecialty;
     });
 
-    // ─── Status helpers ───────────────────────────────────────────────────────
     const statusStyles = {
         Completed: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
         Confirmed: 'bg-sky-50 text-sky-700 border border-sky-100',
@@ -205,7 +201,6 @@ export const PatientDashBoard = () => {
         return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     };
 
-    // ─── Doctor card day strip ────────────────────────────────────────────────
     const DocDayStrip = ({ docItem, uniqueDates, currentSelectedDate }) => (
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
             {uniqueDates.map((dateVal) => {
@@ -237,7 +232,6 @@ export const PatientDashBoard = () => {
         </div>
     );
 
-    // ✅ Fix 3: Slot Dropdown instead of grid of buttons
     const SlotDropdown = ({ docItem, slotsForSelectedDay }) => {
         const isOpen = openSlotDropdown === docItem.id;
         const available = slotsForSelectedDay.length;
@@ -334,9 +328,6 @@ export const PatientDashBoard = () => {
                     ))}
                 </div>
 
-                {/* ══════════════════════════════════════════════════════════════
-                    TAB 0 — BOOK AN APPOINTMENT
-                ══════════════════════════════════════════════════════════════ */}
                 {activeTab === 0 && (
                     <div className="space-y-6">
 
@@ -352,7 +343,6 @@ export const PatientDashBoard = () => {
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                             </div>
-                            {/* ✅ Fix 2: specialty filter uses numeric comparison */}
                             <div className="w-full md:w-60">
                                 <select
                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-slate-300 transition-all text-slate-600 cursor-pointer font-medium"
@@ -388,7 +378,6 @@ export const PatientDashBoard = () => {
                                         .filter((s) => s.date === currentSelectedDate)
                                         .sort((a, b) => (a.start_time || a.time || '').localeCompare(b.start_time || b.time || ''));
 
-                                    // ✅ Fix 4: specialty name lookup
                                     const specialtyName = specialties.find(
                                         s => Number(s.id) === Number(docItem.doctor_profile?.specialty)
                                     )?.name || 'Specialist';
@@ -458,9 +447,6 @@ export const PatientDashBoard = () => {
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
-                    TAB 1 — MY BOOKINGS & RECORDS
-                ══════════════════════════════════════════════════════════════ */}
                 {activeTab === 1 && (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -550,9 +536,6 @@ export const PatientDashBoard = () => {
                 )}
             </div>
 
-            {/* ══════════════════════════════════════════════════════════════
-                MODAL 1 — MEDICAL PRESCRIPTION
-            ══════════════════════════════════════════════════════════════ */}
             {openModal && selectedRecord && (
                 <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100">
@@ -595,13 +578,9 @@ export const PatientDashBoard = () => {
                 </div>
             )}
 
-            {/* ══════════════════════════════════════════════════════════════
-                MODAL 2 — DOCTOR PROFILE
-            ══════════════════════════════════════════════════════════════ */}
             {doctorModalOpen && selectedDoctorProfile && (
                 <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100">
-                        {/* ✅ Fix 5: Doctor profile with all available fields */}
                         <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
                             <div className="w-12 h-12 rounded-xl bg-[#0f172a] flex items-center justify-center text-white text-sm font-bold select-none">
                                 {(selectedDoctorProfile.first_name?.charAt(0) || '') + (selectedDoctorProfile.last_name?.charAt(0) || '')}

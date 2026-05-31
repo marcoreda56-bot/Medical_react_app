@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { appointmentAPI, doctorAPI } from '../services/api';
 import Swal from 'sweetalert2';
 
-// ─── Timezone-safe helper ────────────────────────────────────────────────────
 const toLocalDateStr = (date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -13,22 +12,14 @@ const toLocalDateStr = (date) => {
 export const DoctorDashBoard = () => {
     const [activeTab, setActiveTab] = useState('appointments');
     const [loading, setLoading] = useState(false);
-
     const [slots, setSlots] = useState([]);
     const [appointments, setAppointments] = useState([]);
-
-    // Selected date for Appointments tab
     const [selectedDate, setSelectedDate] = useState(() => toLocalDateStr(new Date()));
-
-    // Selected date for Schedule tab
     const [selectedScheduleDate, setSelectedScheduleDate] = useState(() => toLocalDateStr(new Date()));
-
     const [shiftForm, setShiftForm] = useState({ date: '', startTime: '', workHours: '', duration: '30' });
-
     const [openModal, setOpenModal] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
     const [medicalRecord, setMedicalRecord] = useState({ diagnosis: '', prescription: '', doctor_notes: '' });
-
     const [searchTerm, setSearchTerm] = useState('');
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [selectedHistoryRecord, setSelectedHistoryRecord] = useState(null);
@@ -43,10 +34,8 @@ export const DoctorDashBoard = () => {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    // ✅ Fix: use local date string instead of toISOString()
     const todayStr = toLocalDateStr(today);
 
-    // 8-day strips starting from today
     const calendarDays = Array.from({ length: 8 }, (_, i) => {
         const d = new Date(today);
         d.setDate(d.getDate() + i);
@@ -57,7 +46,6 @@ export const DoctorDashBoard = () => {
         setLoading(true);
         try {
             const appsRes = await appointmentAPI.getMyAppointments();
-            // ✅ Fix: deduplicate by id first, then filter by date
             const unique = Object.values(
                 (appsRes.data || []).reduce((acc, app) => {
                     acc[app.id] = app;
@@ -83,7 +71,6 @@ export const DoctorDashBoard = () => {
 
     useEffect(() => { loadDashboardData(); }, []);
 
-    // ─── Appointment handlers ────────────────────────────────────────────────
     const handleApproveAppointment = async (appId) => {
         try {
             await appointmentAPI.approveAppointment(appId);
@@ -138,7 +125,6 @@ export const DoctorDashBoard = () => {
                 prescription: medicalRecord.prescription,
                 doctor_notes: medicalRecord.doctor_notes,
             });
-            // ✅ Fix: close modal & reset first, then reload from API to get full data including diagnosis
             setOpenModal(false);
             setMedicalRecord({ diagnosis: '', prescription: '', doctor_notes: '' });
             Swal.fire({ icon: 'success', title: 'Session Archived', text: 'Medical records stored successfully.', confirmButtonColor: '#0f172a' });
@@ -149,7 +135,6 @@ export const DoctorDashBoard = () => {
         }
     };
 
-    // ─── Slot handlers ───────────────────────────────────────────────────────
     const handleDeleteSlot = async (slotId) => {
         try {
             await doctorAPI.deleteSlot(slotId);
@@ -226,7 +211,6 @@ export const DoctorDashBoard = () => {
         }
     };
 
-    // ─── Derived data ────────────────────────────────────────────────────────
     const appointmentsForDate = appointments.filter(a =>
         a.slot_details?.date === selectedDate && a.status !== 'Cancelled'
     );
@@ -257,7 +241,6 @@ export const DoctorDashBoard = () => {
         return isCompleted && matchesSearch;
     });
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
     const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     const statusBadge = (status) => ({
@@ -272,11 +255,9 @@ export const DoctorDashBoard = () => {
         return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     };
 
-    // ─── Day strip reusable renderer ─────────────────────────────────────────
     const DayStrip = ({ days, selected, onSelect, countFn, isDateStr = false }) => (
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
             {days.map((item) => {
-                // ✅ Fix: use toLocalDateStr instead of toISOString()
                 const ds = isDateStr ? item : toLocalDateStr(item);
                 const d = isDateStr ? new Date(ds + 'T00:00:00') : item;
                 const cnt = countFn(ds);
@@ -313,7 +294,6 @@ export const DoctorDashBoard = () => {
 
     return (
         <>
-            {/* ── Google Font: DM Sans ── */}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
                 .doctor-dashboard * { font-family: 'DM Sans', sans-serif; }
@@ -323,7 +303,6 @@ export const DoctorDashBoard = () => {
             <div className="doctor-dashboard min-h-screen bg-[#f8f9fb] py-10 px-6 text-[#1e293b] antialiased">
                 <div className="max-w-5xl mx-auto space-y-8">
 
-                    {/* ── Header ── */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-7">
                         <div>
                             <h1 className="text-2xl font-bold text-[#0f172a] tracking-tight">Clinical Operations</h1>
@@ -337,7 +316,6 @@ export const DoctorDashBoard = () => {
                         </button>
                     </div>
 
-                    {/* ── Tabs ── */}
                     <div className="flex border-b border-slate-200 gap-7">
                         {['appointments', 'schedule', 'history'].map(tab => (
                             <button
@@ -354,9 +332,6 @@ export const DoctorDashBoard = () => {
                         ))}
                     </div>
 
-                    {/* ══════════════════════════════════════════════════════════════
-                        TAB 1 — APPOINTMENTS
-                    ══════════════════════════════════════════════════════════════ */}
                     {activeTab === 'appointments' && (
                         <div className="space-y-6">
 
@@ -440,9 +415,6 @@ export const DoctorDashBoard = () => {
                         </div>
                     )}
 
-                    {/* ══════════════════════════════════════════════════════════════
-                        TAB 2 — SCHEDULE PLANNER
-                    ══════════════════════════════════════════════════════════════ */}
                     {activeTab === 'schedule' && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
@@ -501,7 +473,6 @@ export const DoctorDashBoard = () => {
                                 </form>
                             </div>
 
-                            {/* ── Slots Viewer ── */}
                             <div className="md:col-span-2 space-y-5">
 
                                 {scheduleDates.length === 0 ? (
@@ -587,9 +558,6 @@ export const DoctorDashBoard = () => {
                         </div>
                     )}
 
-                    {/* ══════════════════════════════════════════════════════════════
-                        TAB 3 — CASE ARCHIVE
-                    ══════════════════════════════════════════════════════════════ */}
                     {activeTab === 'history' && (
                         <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm space-y-6">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -645,9 +613,6 @@ export const DoctorDashBoard = () => {
                     )}
                 </div>
 
-                {/* ══════════════════════════════════════════════════════════════
-                    MODAL 1 — COMPLETE SESSION
-                ══════════════════════════════════════════════════════════════ */}
                 {openModal && (
                     <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                         <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-6 shadow-xl border border-slate-100">
@@ -677,9 +642,6 @@ export const DoctorDashBoard = () => {
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
-                    MODAL 2 — VIEW PATIENT RECORD
-                ══════════════════════════════════════════════════════════════ */}
                 {historyModalOpen && selectedHistoryRecord && (
                     <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                         <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100">
