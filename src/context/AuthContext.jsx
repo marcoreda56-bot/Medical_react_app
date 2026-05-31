@@ -1,85 +1,109 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { auth, db } from "../firebase/config"; 
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged 
-} from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { createContext, useContext, useEffect, useState } from 'react';
+import axiosInstance from '../api/axios';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState(null);
-  const [userStatus, setUserStatus] = useState(null); 
-  const [loading, setLoading] = useState(true);
-  const [userName, setUserName] = useState(null);
-  const register = async (email, password, name, role) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
+    const [currentUser, setCurrentUser] = useState(null);
+    const [userRole, setUserRole] = useState(null);
+    const [userStatus, setUserStatus] = useState(null);
+    const [userName, setUserName] = useState(null);
+    const [loading, setLoading] = useState(true);
 
-    await setDoc(doc(db, "users", user.uid), {
-      uid: user.uid,
-      name: name,
-      email: email,
-      role: role, 
-      status: role === "doctor" ? "pending" : "approved", 
-      createdAt: new Date()
-    });
+    useEffect(() => {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            setLoading(false);
+            return;
+        }
+        axiosInstance
+            .get('/users/me/')
+            .then((res) => {
+                const user = res.data;
+                setCurrentUser(user);
+                setUserRole(user.role);
+                setUserStatus(user.is_active ? 'approved' : 'pending');
+                setUserName(user.full_name || user.username);
+            })
+            .catch(() => {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+            })
+            .finally(() => setLoading(false));
+    }, []);
 
-    if (role === "doctor") {
-      await setDoc(doc(db, "doctors_profiles", user.uid), {
-        doctor_id: user.uid,
-        specialty: "",
-        bio: "",
-        availability: []
-      });
-    }
+    const register = async (email, password, name, role) => {
+        const [first_name, ...rest] = name.trim().split(' ');
+        const last_name = rest.join(' ');
+        const username = email.split('@')[0] + Math.floor(Math.random() * 1000);
+        const res = await axiosInstance.post('/register/', {
+            username,
+            email,
+            password,
+            role,
+            first_name,
+            last_name,
+        });
+        return res.data;
+    };
 
-    return user;
-  };
+    const login = async (email, password) => {
+        const username = email.includes('@')
+            ? await resolveUsername(email)
+            : email;
+        const res = await axiosInstance.post('/auth/login/', {
+            username,
+            password,
+        });
+        localStorage.setItem('access_token', res.data.access);
+        localStorage.setItem('refresh_token', res.data.refresh);
 
-  const login = async (email, password) => {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
-  };
+        const meRes = await axiosInstance.get('/users/me/');
+        const user = meRes.data;
+        setCurrentUser(user);
+        setUserRole(user.role);
+        setUserStatus(user.is_active ? 'approved' : 'pending');
+        setUserName(user.full_name || user.username);
+        return user;
+    };
 
-  const logout = () => {
-    return signOut(auth);
-  };
+    const resolveUsername = async (email) => {
+        try {
+            const res = await axiosInstance.post('/auth/login/', {
+                username: email,
+                password: 'dummy',
+            });
+            return res.data.username || email;
+        } catch {
+            return email;
+        }
+    };
 
-  useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (user) => {
-    setLoading(true);
-    if (user) {
-      setCurrentUser(user);
-      const docRef = doc(db, "users", user.uid);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setUserRole(docSnap.data().role);
-        setUserStatus(docSnap.data().status);
-        setUserName(docSnap.data().name); // جلب الاسم من الـ Firestore هنا 🎯
-      }
-    } else {
-      setCurrentUser(null);
-      setUserRole(null);
-      setUserStatus(null);
-      setUserName(null);
-    }
-    setLoading(false);
-  });
+    const logout = () => {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        setCurrentUser(null);
+        setUserRole(null);
+        setUserStatus(null);
+        setUserName(null);
+    };
 
-  return unsubscribe;
-}, []);
+    const value = {
+        currentUser,
+        userRole,
+        userStatus,
+        userName,
+        loading,
+        register,
+        login,
+        logout,
+    };
 
-const value = { currentUser, userRole, userStatus, userName, register, login, logout };
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
+    return (
+        <AuthContext.Provider value={value}>
+            {!loading && children}
+        </AuthContext.Provider>
+    );
 };
 
 export const useAuth = () => useContext(AuthContext);

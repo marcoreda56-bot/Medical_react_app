@@ -1,10 +1,45 @@
-import axios from "axios";
+import axios from 'axios';
 
 const axiosInstance = axios.create({
-    baseURL:"http://localhost:3001",
-    headers:{
-        "Content-Type":"application/json"
-    }
+    baseURL: 'http://localhost:8000/api',
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
+
+axiosInstance.interceptors.request.use((config) => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+axiosInstance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const original = error.config;
+        if (error.response?.status === 401 && !original._retry) {
+            original._retry = true;
+            try {
+                const refresh = localStorage.getItem('refresh_token');
+                const res = await axios.post(
+                    'http://localhost:8000/api/auth/refresh/',
+                    {
+                        refresh,
+                    }
+                );
+                localStorage.setItem('access_token', res.data.access);
+                original.headers.Authorization = `Bearer ${res.data.access}`;
+                return axiosInstance(original);
+            } catch {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                window.location.href = '/login';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
 
 export default axiosInstance;
