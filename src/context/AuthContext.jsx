@@ -15,13 +15,20 @@ export const AuthProvider = ({ children }) => {
         return localStorage.getItem('user_role') || null;
     });
 
-    const [loading, setLoading] = useState(false); 
+    const [loading, setLoading] = useState(false);
 
-    const login = async (username, password) => {
+    // email param is used as username because registration stores email as username
+    const login = async (email, password) => {
         setLoading(true);
         try {
-            const response = await authAPI.login(username, password);
-            const { access, refresh, role, username: resUsername, uid } = response.data;
+            const response = await authAPI.login(email, password);
+            const {
+                access,
+                refresh,
+                role,
+                username: resUsername,
+                uid,
+            } = response.data;
 
             localStorage.setItem('access_token', access);
             localStorage.setItem('refresh_token', refresh);
@@ -35,8 +42,14 @@ export const AuthProvider = ({ children }) => {
             return { success: true, role };
         } catch (error) {
             setLoading(false);
-            console.error('Login error:', error.response?.data || error.message);
-            throw new Error(error.response?.data?.detail || 'Invalid username or password.', { cause: error });
+            console.error(
+                'Login error:',
+                error.response?.data || error.message
+            );
+            throw new Error(
+                error.response?.data?.detail || 'Invalid email or password.',
+                { cause: error }
+            );
         }
     };
 
@@ -45,29 +58,34 @@ export const AuthProvider = ({ children }) => {
         try {
             await authAPI.register(userData);
             setLoading(false);
-            return await login(userData.username, userData.password);
+            return { success: true };
         } catch (error) {
             setLoading(false);
-            console.error('Registration error:', error.response?.data || error.message);
-            
+            console.error(
+                'Registration error:',
+                error.response?.data || error.message
+            );
+
             const errorData = error.response?.data;
             let errorMsg = 'Registration failed. Please try again.';
 
             if (errorData) {
-                // تحويل الداتا لنص صغير عشان نعمل فحص ذكي وسريع على الكلمات المفتاحية
                 const dataString = JSON.stringify(errorData).toLowerCase();
-                
-                if (dataString.includes('already exists') || dataString.includes('already registered') || dataString.includes('unique')) {
-                    errorMsg = 'This email or username is already registered. Please use another one or sign in.';
+                if (
+                    dataString.includes('already exists') ||
+                    dataString.includes('already registered') ||
+                    dataString.includes('unique')
+                ) {
+                    errorMsg =
+                        'This email or username is already registered. Please use another one or sign in.';
                 } else if (typeof errorData === 'object') {
-                    // لو فيه أخطاء تانية مجمعة (زي إن الباسورد ضعيف أو الحقول ناقصة) بيعرضها بشكل منسق
                     errorMsg = Object.values(errorData).flat().join(' | ');
                 }
             } else if (error.message.includes('Network Error')) {
-                errorMsg = 'Network error. Please check your internet connection or server status.';
+                errorMsg =
+                    'Network error. Please check your internet connection or server status.';
             }
 
-            // بنرمي الخطأ بالرسالة المفهومة والنظيفة لصفحة الـ Register
             throw new Error(errorMsg, { cause: error });
         }
     };
@@ -78,17 +96,19 @@ export const AuthProvider = ({ children }) => {
         setUserRole(null);
     };
 
-    const value = { 
-        currentUser, 
-        userRole, 
-        userName: currentUser?.username || '', 
-        loading, 
-        login, 
-        register, 
-        logout 
+    const value = {
+        currentUser,
+        userRole,
+        userName: currentUser?.username || '',
+        loading,
+        login,
+        register,
+        logout,
     };
 
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+    return (
+        <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    );
 };
 
 export const useAuth = () => useContext(AuthContext);
