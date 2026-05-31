@@ -1,113 +1,93 @@
-import { createContext, useContext, useState } from 'react';
-import { authAPI } from '../services/api';
+import { createContext, useContext, useEffect, useState } from 'react';
+import axiosInstance from '../api/axios';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const [currentUser, setCurrentUser] = useState(() => {
+    const [currentUser, setCurrentUser] = useState(null);
+    const [userRole, setUserRole] = useState(null);
+    const [userStatus, setUserStatus] = useState(null);
+    const [userName, setUserName] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
         const token = localStorage.getItem('access_token');
-        const username = localStorage.getItem('username');
-        const uid = localStorage.getItem('user_uid');
-        return token ? { token, username, uid } : null;
-    });
-
-    const [userRole, setUserRole] = useState(() => {
-        return localStorage.getItem('user_role') || null;
-    });
-
-    const [loading, setLoading] = useState(false);
-
-    // email param is used as username because registration stores email as username
-    const login = async (email, password) => {
-        setLoading(true);
-        try {
-            const response = await authAPI.login(email, password);
-            const {
-                access,
-                refresh,
-                role,
-                username: resUsername,
-                uid,
-            } = response.data;
-
-            localStorage.setItem('access_token', access);
-            localStorage.setItem('refresh_token', refresh);
-            localStorage.setItem('user_role', role);
-            localStorage.setItem('username', resUsername);
-            localStorage.setItem('user_uid', uid);
-
-            setCurrentUser({ token: access, username: resUsername, uid });
-            setUserRole(role);
+        if (!token) {
             setLoading(false);
-            return { success: true, role };
-        } catch (error) {
-            setLoading(false);
-            console.error(
-                'Login error:',
-                error.response?.data || error.message
-            );
-            throw new Error(
-                error.response?.data?.detail || 'Invalid email or password.',
-                { cause: error }
-            );
+            return;
         }
+        axiosInstance
+            .get('/users/me/')
+            .then((res) => {
+                const user = res.data;
+                setCurrentUser(user);
+                setUserRole(user.role);
+                setUserStatus(user.is_active ? 'approved' : 'pending');
+                setUserName(user.full_name || user.username);
+            })
+            .catch(() => {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+            })
+            .finally(() => setLoading(false));
+    }, []);
+
+    const register = async (email, password, name, role) => {
+        const [first_name, ...rest] = name.trim().split(' ');
+        const last_name = rest.join(' ');
+        const username = email.split('@')[0] + Math.floor(Math.random() * 1000);
+        const res = await axiosInstance.post('/register/', {
+            username,
+            email,
+            password,
+            role,
+            first_name,
+            last_name,
+        });
+        return res.data;
     };
 
-    const register = async (userData) => {
-        setLoading(true);
-        try {
-            await authAPI.register(userData);
-            setLoading(false);
-            return { success: true };
-        } catch (error) {
-            setLoading(false);
-            console.error(
-                'Registration error:',
-                error.response?.data || error.message
-            );
+    const login = async (email, password) => {
+        const res = await axiosInstance.post('/auth/login/', {
+            username: email,
+            password,
+        });
+        localStorage.setItem('access_token', res.data.access);
+        localStorage.setItem('refresh_token', res.data.refresh);
 
-            const errorData = error.response?.data;
-            let errorMsg = 'Registration failed. Please try again.';
-
-            if (errorData) {
-                const dataString = JSON.stringify(errorData).toLowerCase();
-                if (
-                    dataString.includes('already exists') ||
-                    dataString.includes('already registered') ||
-                    dataString.includes('unique')
-                ) {
-                    errorMsg =
-                        'This email or username is already registered. Please use another one or sign in.';
-                } else if (typeof errorData === 'object') {
-                    errorMsg = Object.values(errorData).flat().join(' | ');
-                }
-            } else if (error.message.includes('Network Error')) {
-                errorMsg =
-                    'Network error. Please check your internet connection or server status.';
-            }
-
-            throw new Error(errorMsg, { cause: error });
-        }
+        const meRes = await axiosInstance.get('/users/me/');
+        const user = meRes.data;
+        setCurrentUser(user);
+        setUserRole(user.role);
+        setUserStatus(user.is_active ? 'approved' : 'pending');
+        setUserName(user.full_name || user.username);
+        return user;
     };
 
     const logout = () => {
-        localStorage.clear();
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
         setCurrentUser(null);
         setUserRole(null);
+        setUserStatus(null);
+        setUserName(null);
     };
 
     const value = {
         currentUser,
         userRole,
-        userName: currentUser?.username || '',
+        userStatus,
+        userName,
         loading,
-        login,
         register,
+        login,
         logout,
     };
 
     return (
-        <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+        <AuthContext.Provider value={value}>
+            {!loading && children}
+        </AuthContext.Provider>
     );
 };
 

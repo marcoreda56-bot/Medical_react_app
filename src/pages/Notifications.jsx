@@ -16,8 +16,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
-import { doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import axiosInstance from '../api/axios';
 
 const NotificationsPage = () => {
     const { notifications, markAsRead } = useNotifications();
@@ -43,7 +42,7 @@ const NotificationsPage = () => {
         });
         if (res.isConfirmed) {
             try {
-                await deleteDoc(doc(db, 'notifications', n.id));
+                await axiosInstance.delete(`/notifications/${n.id}/`);
                 Swal.fire('Deleted', '', 'success');
             } catch (err) {
                 console.error(err);
@@ -83,23 +82,29 @@ const NotificationsPage = () => {
                                 key={n.id}
                                 divider
                                 alignItems="flex-start"
-                                // 1. هنا بنغير لون الخلفية للإشعارات غير المقروءة ولون خفيف عند الـ Hover
                                 sx={{
-                                    backgroundColor: n.read ? 'transparent' : 'action.hover',
+                                    backgroundColor: n.read
+                                        ? 'transparent'
+                                        : 'action.hover',
                                     transition: 'background-color 0.3s ease',
                                     borderRadius: '4px',
                                     mb: 0.5,
                                     '&:hover': {
-                                        backgroundColor: n.read ? 'action.hover' : 'action.selected',
+                                        backgroundColor: n.read
+                                            ? 'action.hover'
+                                            : 'action.selected',
                                     },
                                 }}
                             >
                                 <ListItemText
-                                    // 2. تعديل الـ primary ليكون الخط عريض (Bold) لو مش مقروءة
                                     primary={
-                                        <Typography 
-                                            variant="body1" 
-                                            sx={{ fontWeight: n.read ? 'normal' : 'bold' }}
+                                        <Typography
+                                            variant="body1"
+                                            sx={{
+                                                fontWeight: n.read
+                                                    ? 'normal'
+                                                    : 'bold',
+                                            }}
                                         >
                                             {n.title}
                                         </Typography>
@@ -109,19 +114,15 @@ const NotificationsPage = () => {
                                 <ListItemSecondaryAction>
                                     <IconButton
                                         edge="end"
-                                        aria-label="open"
                                         onClick={() => handleOpen(n)}
                                         title="Open"
                                         sx={{ mr: 1 }}
                                     >
                                         <OpenInNewIcon />
                                     </IconButton>
-                                    
-                                    {/* 3. إظهار زر التحديد كمقروء فقط إذا كان الإشعار غير مقروء فعلياً */}
                                     {!n.read && (
                                         <IconButton
                                             edge="end"
-                                            aria-label="mark-read"
                                             onClick={() => markAsRead(n.id)}
                                             title="Mark as read"
                                             color="success"
@@ -130,10 +131,8 @@ const NotificationsPage = () => {
                                             <DoneIcon />
                                         </IconButton>
                                     )}
-                                    
                                     <IconButton
                                         edge="end"
-                                        aria-label="delete"
                                         onClick={() => handleDelete(n)}
                                         title="Delete"
                                         color="error"
