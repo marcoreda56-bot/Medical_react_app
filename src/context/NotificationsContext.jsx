@@ -1,15 +1,11 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { db } from '../firebase/config';
 import {
-    collection,
-    query,
-    where,
-    onSnapshot,
-    addDoc,
-    updateDoc,
-    doc,
-    serverTimestamp,
-} from 'firebase/firestore';
+    createContext,
+    useContext,
+    useEffect,
+    useState,
+    useCallback,
+} from 'react';
+import axiosInstance from '../api/axios';
 import { useAuth } from './AuthContext';
 
 const NotificationsContext = createContext();
@@ -18,76 +14,69 @@ export const NotificationsProvider = ({ children }) => {
     const { currentUser } = useAuth();
     const [notifications, setNotifications] = useState([]);
 
+    const fetchNotifications = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const res = await axiosInstance.get('/notifications/');
+            const sorted = res.data.sort(
+                (a, b) => new Date(b.created_at) - new Date(a.created_at)
+            );
+            setNotifications(sorted);
+        } catch (err) {
+            console.error('Failed to fetch notifications', err);
+        }
+    }, [currentUser]);
+
     useEffect(() => {
-        if (!currentUser?.uid) {
+        if (!currentUser) {
+            setNotifications([]);
             return;
         }
+        fetchNotifications();
+        const interval = setInterval(fetchNotifications, 15000);
+        return () => clearInterval(interval);
+    }, [currentUser, fetchNotifications]);
 
-        const q = query(
-            collection(db, 'notifications'),
-            where('userId', '==', currentUser.uid)
-        );
-
-        const unsub = onSnapshot(
-            q,
-            (snap) => {
-                const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-                // sort client-side by createdAt descending when available
-                items.sort((a, b) => {
-                    const ta = a.createdAt?.toDate
-                        ? a.createdAt.toDate().getTime()
-                        : a.createdAt?.seconds
-                          ? a.createdAt.seconds * 1000
-                          : 0;
-                    const tb = b.createdAt?.toDate
-                        ? b.createdAt.toDate().getTime()
-                        : b.createdAt?.seconds
-                          ? b.createdAt.seconds * 1000
-                          : 0;
-                    return tb - ta;
-                });
-                setNotifications(items);
-            },
-            (err) => {
-                console.error('Notifications listener error:', err);
-            }
-        );
-
-        return () => unsub();
-    }, [currentUser]);
+    const markAsRead = async (notificationId) => {
+        try {
+            await axiosInstance.patch(`/notifications/${notificationId}/`, {
+                read: true,
+            });
+            setNotifications((prev) =>
+                prev.map((n) =>
+                    n.id === notificationId ? { ...n, read: true } : n
+                )
+            );
+        } catch (err) {
+            console.error('Failed to mark notification read', err);
+        }
+    };
 
     const sendNotification = async (userId, title, body, data = {}) => {
         try {
-            await addDoc(collection(db, 'notifications'), {
-                userId,
+            await axiosInstance.post('/notifications/', {
+                user: userId,
                 title,
                 body,
                 data,
-                read: false,
-                createdAt: serverTimestamp(),
             });
         } catch (err) {
             console.error('Failed to send notification', err);
         }
     };
 
-    const markAsRead = async (notificationId) => {
-        try {
-            const ref = doc(db, 'notifications', notificationId);
-            await updateDoc(ref, { read: true });
-        } catch (err) {
-            console.error('Failed to mark notification read', err);
-        }
-    };
-
     return (
         <NotificationsContext.Provider
-            value={{ notifications: currentUser?.uid ? notifications : [], sendNotification, markAsRead }}
+            value={{
+                notifications,
+                sendNotification,
+                markAsRead,
+                fetchNotifications,
+            }}
         >
             {children}
         </NotificationsContext.Provider>
     );
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useNotifications = () => useContext(NotificationsContext);
