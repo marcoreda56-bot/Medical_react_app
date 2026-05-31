@@ -21,7 +21,7 @@ const buildItems = (counts) =>
 
 const COLORS = ['#1976d2', '#388e3c', '#f57c00', '#d32f2f', '#7b1fa2', '#0288d1', '#9c27b0'];
 
-export const AnalyticsPanel = ({ stats, userStatusCounts, appointmentStatusCounts, specialtyCounts, totalConfigs }) => {
+export const AnalyticsPanel = ({ userStatusCounts, appointmentStatusCounts, specialtyCounts }) => {
   const userItems = buildItems(userStatusCounts);
   const appointmentItems = buildItems(appointmentStatusCounts);
   const specialtyItems = Object.entries(specialtyCounts || {}).map(([name, value]) => ({ name, value }));
@@ -82,7 +82,7 @@ export const AnalyticsPanel = ({ stats, userStatusCounts, appointmentStatusCount
               {specialtyItems.length === 0 ? (
                 <Typography color="text.secondary">No specialty data available.</Typography>
               ) : (
-                specialtyItems.map((item, index) => (
+                specialtyItems.map((item) => (
                   <ListItem key={item.name} sx={{ py: 1, px: 0 }}>
                     <ListItemText primary={item.name} />
                     <Typography variant="subtitle2">{item.value}</Typography>

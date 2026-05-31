@@ -1,12 +1,7 @@
-import {
-    BrowserRouter as Router,
-    Routes,
-    Route,
-    Navigate,
-} from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import './App.css';
 
-// Pages & Dashboards Imports
 import Login from './pages/login';
 import Register from './pages/register';
 import { Profile } from './pages/Profile.jsx';
@@ -19,8 +14,8 @@ import RoleRoute from './routes/RoleRoute';
 import { DoctorDashBoard } from './dashboards/DoctorDashBoard';
 import { PatientDashBoard } from './dashboards/PatientDashBoard';
 import { AdminDashBoard } from './features/admin/AdminDashBoard';
+import { VerifyOTP } from './pages/VerifyOTP';
 
-// Context & Components Imports
 import { useAuth } from './context/AuthContext';
 import { Navbar } from './components/NavBar.jsx';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
@@ -76,6 +71,9 @@ function AppContent() {
                         )
                     }
                 />
+
+                {/* OTP Verification Route */}
+                <Route path="/verify-otp" element={<VerifyOTP />} />
 
                 {/* Core Protected Routes */}
                 <Route
@@ -135,10 +133,13 @@ function AppContent() {
                     }
                 />
 
-                {/* Landing / Home & Fallback Redirection */}
+                {/* Home & Fallback Redirection */}
+                <Route path="/" element={<Landing />} />
                 <Route
-                    path="/"
-                    element={currentUser ? <Home /> : <Landing />}
+                    path="/home"
+                    element={
+                        currentUser ? <Home /> : <Navigate to="/login" replace />
+                    }
                 />
                 <Route
                     path="*"
@@ -155,11 +156,64 @@ function AppContent() {
 }
 
 function App() {
+    const theme = createTheme({
+        palette: {
+            primary: {
+                main: '#006d77',
+                dark: '#004f57',
+            },
+            secondary: {
+                main: '#ef8354',
+            },
+            background: {
+                default: '#f6f8fb',
+            },
+        },
+        shape: {
+            borderRadius: 8,
+        },
+        typography: {
+            fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+            button: {
+                textTransform: 'none',
+                fontWeight: 700,
+            },
+        },
+        components: {
+            MuiPaper: {
+                styleOverrides: {
+                    root: {
+                        border: '1px solid rgba(15, 23, 42, 0.08)',
+                    },
+                },
+            },
+            MuiButton: {
+                styleOverrides: {
+                    root: {
+                        borderRadius: 8,
+                    },
+                },
+            },
+            MuiTableHead: {
+                styleOverrides: {
+                    root: {
+                        '& .MuiTableCell-root': {
+                            fontWeight: 800,
+                        },
+                    },
+                },
+            },
+        },
+    });
+
     return (
         <LanguageProvider>
-            <Router>
-                <AppContent />
-            </Router>
+            <ThemeProvider theme={theme}>
+                <CssBaseline />
+                <Router>
+                    <AppContent />
+                </Router>
+            </ThemeProvider>
         </LanguageProvider>
     );
 }

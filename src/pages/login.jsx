@@ -56,8 +56,11 @@ const Login = () => {
             else if (user.role === 'admin') navigate('/admin');
             else navigate('/');
         } catch (err) {
-            const msg = err.response?.data?.detail;
-            if (msg === 'No active account found with the given credentials') {
+            const msg = err.response?.data?.detail || err.message;
+            if (
+                msg?.includes('No active account') ||
+                msg?.includes('credentials')
+            ) {
                 Toast.fire({
                     icon: 'error',
                     title: t('login.toast.invalidCredentials'),
@@ -126,8 +129,7 @@ const Login = () => {
                         }}
                     >
                         Empowering healthcare teams and patient coordination
-                        through advanced real-time medical insights and seamless
-                        schedule automation.
+                        through advanced real-time medical insights.
                     </Typography>
                 </Box>
             </Grid>

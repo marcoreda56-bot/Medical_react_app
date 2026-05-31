@@ -48,11 +48,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     const login = async (email, password) => {
-        const username = email.includes('@')
-            ? await resolveUsername(email)
-            : email;
         const res = await axiosInstance.post('/auth/login/', {
-            username,
+            username: email,
             password,
         });
         localStorage.setItem('access_token', res.data.access);
@@ -65,18 +62,6 @@ export const AuthProvider = ({ children }) => {
         setUserStatus(user.is_active ? 'approved' : 'pending');
         setUserName(user.full_name || user.username);
         return user;
-    };
-
-    const resolveUsername = async (email) => {
-        try {
-            const res = await axiosInstance.post('/auth/login/', {
-                username: email,
-                password: 'dummy',
-            });
-            return res.data.username || email;
-        } catch {
-            return email;
-        }
     };
 
     const logout = () => {

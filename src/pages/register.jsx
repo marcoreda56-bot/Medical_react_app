@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import Swal from 'sweetalert2';
 import axiosInstance from '../api/axios';
+import Swal from 'sweetalert2';
 import {
     Grid,
     Box,
@@ -20,7 +19,6 @@ import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import { useLanguage } from '../context/LanguageContext';
 
 const Register = () => {
-    const { login } = useAuth();
     const navigate = useNavigate();
     const { t } = useLanguage();
 
@@ -29,8 +27,6 @@ const Register = () => {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [role, setRole] = useState('patient');
-
-    // OTP step
     const [otpSent, setOtpSent] = useState(false);
     const [otp, setOtp] = useState('');
     const [registeredEmail, setRegisteredEmail] = useState('');
@@ -79,13 +75,11 @@ const Register = () => {
     const handleRegister = async (e) => {
         e.preventDefault();
         if (!validateForm()) return;
-
         try {
             const [first_name, ...rest] = name.trim().split(' ');
             const last_name = rest.join(' ');
             const username =
                 email.split('@')[0] + Math.floor(Math.random() * 1000);
-
             await axiosInstance.post('/register/', {
                 username,
                 email,
@@ -94,7 +88,6 @@ const Register = () => {
                 first_name,
                 last_name,
             });
-
             setRegisteredEmail(email);
             setOtpSent(true);
             Toast.fire({ icon: 'success', title: 'OTP sent to your email!' });
@@ -134,10 +127,9 @@ const Register = () => {
                 confirmButtonText: t('login.signIn'),
             }).then(() => navigate('/login'));
         } catch (err) {
-            const msg = err.response?.data?.error;
             Toast.fire({
                 icon: 'error',
-                title: msg || 'Invalid or expired OTP.',
+                title: err.response?.data?.error || 'Invalid or expired OTP.',
             });
         }
     };
@@ -372,86 +364,54 @@ const Register = () => {
                         noValidate
                         sx={{ width: '100%' }}
                     >
-                        <TextField
-                            margin="dense"
-                            required
-                            fullWidth
-                            label={t('register.fullName')}
-                            autoFocus
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 2,
-                                    '&.Mui-focused fieldset': {
-                                        borderColor: '#00796b',
+                        {[
+                            {
+                                label: t('register.fullName'),
+                                value: name,
+                                setter: setName,
+                                type: 'text',
+                            },
+                            {
+                                label: t('register.email'),
+                                value: email,
+                                setter: setEmail,
+                                type: 'email',
+                            },
+                            {
+                                label: t('register.password'),
+                                value: password,
+                                setter: setPassword,
+                                type: 'password',
+                            },
+                            {
+                                label: t('register.confirmPassword'),
+                                value: confirmPassword,
+                                setter: setConfirmPassword,
+                                type: 'password',
+                            },
+                        ].map((field) => (
+                            <TextField
+                                key={field.label}
+                                margin="dense"
+                                required
+                                fullWidth
+                                label={field.label}
+                                type={field.type}
+                                value={field.value}
+                                onChange={(e) => field.setter(e.target.value)}
+                                sx={{
+                                    '& .MuiOutlinedInput-root': {
+                                        borderRadius: 2,
+                                        '&.Mui-focused fieldset': {
+                                            borderColor: '#00796b',
+                                        },
                                     },
-                                },
-                                '& .MuiInputLabel-root.Mui-focused': {
-                                    color: '#00796b',
-                                },
-                            }}
-                        />
-                        <TextField
-                            margin="dense"
-                            required
-                            fullWidth
-                            label={t('register.email')}
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 2,
-                                    '&.Mui-focused fieldset': {
-                                        borderColor: '#00796b',
+                                    '& .MuiInputLabel-root.Mui-focused': {
+                                        color: '#00796b',
                                     },
-                                },
-                                '& .MuiInputLabel-root.Mui-focused': {
-                                    color: '#00796b',
-                                },
-                            }}
-                        />
-                        <TextField
-                            margin="dense"
-                            required
-                            fullWidth
-                            label={t('register.password')}
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 2,
-                                    '&.Mui-focused fieldset': {
-                                        borderColor: '#00796b',
-                                    },
-                                },
-                                '& .MuiInputLabel-root.Mui-focused': {
-                                    color: '#00796b',
-                                },
-                            }}
-                        />
-                        <TextField
-                            margin="dense"
-                            required
-                            fullWidth
-                            label={t('register.confirmPassword')}
-                            type="password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 2,
-                                    '&.Mui-focused fieldset': {
-                                        borderColor: '#00796b',
-                                    },
-                                },
-                                '& .MuiInputLabel-root.Mui-focused': {
-                                    color: '#00796b',
-                                },
-                            }}
-                        />
+                                }}
+                            />
+                        ))}
 
                         <Box
                             sx={{
@@ -546,7 +506,6 @@ const Register = () => {
                         >
                             {t('register.signUp')}
                         </Button>
-
                         <Box sx={{ mt: 2, textAlign: 'center' }}>
                             <Typography variant="body2" color="textSecondary">
                                 {t('register.existingAccount')}{' '}

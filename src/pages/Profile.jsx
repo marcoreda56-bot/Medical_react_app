@@ -1,216 +1,283 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import axiosInstance from '../api/axios';
-import {
-    Container,
-    Paper,
-    Typography,
-    TextField,
-    Button,
-    Box,
-    Grid,
-    Avatar,
-    Divider,
-} from '@mui/material';
-import PersonIcon from '@mui/icons-material/Person';
-import SaveIcon from '@mui/icons-material/Save';
-import Swal from 'sweetalert2';
 import { useLanguage } from '../context/LanguageContext';
+import api, { specialtyAPI, profileAPI } from '../services/api'; 
 
 export const Profile = () => {
     const { currentUser, userRole } = useAuth();
     const { t } = useLanguage();
-
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [specialty, setSpecialty] = useState('');
-    const [bio, setBio] = useState('');
+    
+    const [specialties, setSpecialties] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState({ type: '', text: '' });
 
-    const Toast = Swal.mixin({
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true,
+    // الـ State الموحدة لبيانات بروفايل الدكتور
+    const [doctorData, setDoctorData] = useState({
+        specialty: '',
+        bio: '',
+        consultation_fee: '',
+        clinic_address: '',
     });
 
+    // الـ State الموحدة لبيانات بروفايل المريض
+    const [patientData, setPatientData] = useState({
+        date_of_birth: '',
+        gender: '',
+        blood_type: '',
+        address: '',
+    });
+
+    // جلب البيانات عند تحميل الصفحة بناءً على الـ Role
     useEffect(() => {
-        if (!currentUser) return;
+        // 1. جلب التخصصات (مهمة للدكتور وممكن يحتاجها المريض لرؤية التخصصات)
+        specialtyAPI.getSpecialties()
+            .then(res => setSpecialties(res.data))
+            .catch(err => console.error('Failed to fetch specialties:', err));
 
-        const fetchProfile = async () => {
-            try {
-                const userRes = await axiosInstance.get('/users/me/');
-                setName(
-                    userRes.data.full_name ||
-                        `${userRes.data.first_name} ${userRes.data.last_name}`.trim()
-                );
-                setEmail(userRes.data.email);
-
-                if (userRole === 'doctor') {
-                    const profileRes = await axiosInstance.get(
-                        '/doctor-profiles/me/'
-                    );
-                    setSpecialty(profileRes.data.specialty_name || '');
-                    setBio(profileRes.data.bio || '');
-                }
-            } catch (err) {
-                console.error(err);
-                Toast.fire({ icon: 'error', title: t('profile.failedLoad') });
-            }
-        };
-
-        fetchProfile();
-    }, [currentUser, userRole]);
-
-    const handleSave = async (e) => {
-        e.preventDefault();
-        if (!name.trim()) {
-            Toast.fire({ icon: 'error', title: t('profile.nameRequired') });
-            return;
+        // 2. جلب البيانات بناءً على نوع المستخدم
+        if (userRole === 'doctor') {
+            profileAPI.getDoctorProfile()
+                .then(res => {
+                    if (res.data) {
+                        setDoctorData({
+                            specialty: res.data.specialty || '',
+                            bio: res.data.bio || '',
+                            consultation_fee: res.data.consultation_fee || '',
+                            clinic_address: res.data.clinic_address || '',
+                        });
+                    }
+                })
+                .catch(err => console.error('Failed to fetch doctor profile:', err));
+        } else if (userRole === 'patient') {
+            // ملحوظة: لو الباك إند لسه معملتش endpoint مخصصة لـ patient-profiles/me/
+            // تقدر تجيبها عادي بالـ Endpoints الأساسية أو نعدلها بالباك إند، حالياً هنربطها بـ endpoint المريض
+            api.get('/users/me/') // الباكيند بتاعك بيرجع بيانات اليوزر الأساسية هنا
+                .then(res => {
+                    // هنا بنربط مع الـ Patient Profile الملحق باليوزر لو الـ serializer بيبعته، أو نكلم الـ endpoint بتاعته
+                    // فرضا أننا هنكلم المريض مباشرة بناء على تصميم الـ ViewSet
+                    api.get('/patient-profiles/me/').then(pRes => {
+                        setPatientData({
+                            date_of_birth: pRes.data.date_of_birth || '',
+                            gender: pRes.data.gender || '',
+                            blood_type: pRes.data.blood_type || '',
+                            address: pRes.data.address || '',
+                        });
+                    }).catch(() => {
+                        // fallback لو مفيش endpoint منفصلة وجاية مع الـ /me
+                        if(res.data.profile) {
+                            setPatientData(res.data.profile);
+                        }
+                    });
+                })
+                .catch(err => console.error('Failed to fetch patient data:', err));
         }
+    }, [userRole]);
 
+    const handleDoctorChange = (e) => {
+        const { name, value } = e.target;
+        setDoctorData({ ...doctorData, [name]: value });
+    };
+
+    const handlePatientChange = (e) => {
+        const { name, value } = e.target;
+        setPatientData({ ...patientData, [name]: value });
+    };
+
+    // حفظ البيانات
+    const handleSaveProfile = async (e) => {
+        e.preventDefault();
         setLoading(true);
+        setMessage({ type: '', text: '' });
+
         try {
-            const [first_name, ...rest] = name.trim().split(' ');
-            const last_name = rest.join(' ');
-            await axiosInstance.patch('/users/me/', { first_name, last_name });
-
             if (userRole === 'doctor') {
-                await axiosInstance.patch('/doctor-profiles/me/', { bio });
+                const dataToSend = {
+                    ...doctorData,
+                    specialty: doctorData.specialty ? parseInt(doctorData.specialty) : null,
+                    consultation_fee: doctorData.consultation_fee ? parseFloat(doctorData.consultation_fee) : 0.0,
+                };
+                await profileAPI.saveDoctorProfile(dataToSend);
+            } else if (userRole === 'patient') {
+                // تعديل بروفايل المريض عبر الـ API الخاص به
+                await api.patch('/patient-profiles/me/', patientData);
             }
-
-            Swal.fire({
-                icon: 'success',
-                title: t('profile.updated'),
-                text: t('profile.updatedText'),
-                confirmButtonColor: '#00796b',
-            });
+            
+            setMessage({ type: 'success', text: 'Profile updated successfully!' });
         } catch (err) {
-            console.error(err);
-            Toast.fire({ icon: 'error', title: t('profile.failedSave') });
+            console.error('Error saving profile:', err);
+            const errorData = err.response?.data;
+            let errorMsg = 'Failed to save profile. Please check your data.';
+            if (errorData && typeof errorData === 'object') {
+                errorMsg = Object.values(errorData).flat().join(' | ');
+            }
+            setMessage({ type: 'error', text: errorMsg });
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Container maxWidth="md" sx={{ mt: 5, mb: 5 }}>
-            <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-                <Box
-                    sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        mb: 3,
-                    }}
-                >
-                    <Avatar sx={{ width: 60, height: 60, bgcolor: '#00796b' }}>
-                        <PersonIcon sx={{ fontSize: 35 }} />
-                    </Avatar>
-                    <Box>
-                        <Typography
-                            variant="h5"
-                            sx={{ fontWeight: 'bold', color: '#333' }}
-                        >
-                            {t('profile.title')}
-                        </Typography>
-                        <Typography
-                            variant="body2"
-                            color="textSecondary"
-                            sx={{
-                                textTransform: 'uppercase',
-                                fontWeight: 'bold',
-                                color: '#00796b',
-                            }}
-                        >
-                            {t('profile.accountType')}: {t(`roles.${userRole}`)}
-                        </Typography>
-                    </Box>
-                </Box>
+        <div className="min-h-screen bg-[#f6f8fb] py-10 px-4">
+            <div className="max-w-3xl mx-auto bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden text-left">
+                
+                {/* Header Banner */}
+                <div className="bg-gradient-to-r from-[#00796b] to-[#004d40] px-8 py-6 text-white">
+                    <h1 className="text-2xl font-black tracking-wide">
+                        {userRole === 'doctor' ? 'Doctor Profile Settings' : 'Patient Profile Settings'}
+                    </h1>
+                    <p className="text-sm text-teal-100/80 mt-1">
+                        {userRole === 'doctor' ? 'Keep your clinic info and specialties up to date.' : 'Manage your personal health profile info.'}
+                    </p>
+                </div>
 
-                <Divider sx={{ mb: 4 }} />
+                <form onSubmit={handleSaveProfile} className="p-8 space-y-6">
+                    
+                    {/* Feedback Alerts */}
+                    {message.text && (
+                        <div className={`p-4 rounded-xl text-sm font-bold flex items-center gap-2 ${
+                            message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}>
+                            <span>{message.text}</span>
+                        </div>
+                    )}
 
-                <Box component="form" onSubmit={handleSave} noValidate>
-                    <Grid container spacing={3}>
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                label={t('register.fullName')}
-                                fullWidth
-                                variant="outlined"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                required
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                label={t('login.email')}
-                                fullWidth
-                                variant="outlined"
-                                value={email}
-                                disabled
-                                helperText={t('profile.emailHelp')}
-                            />
-                        </Grid>
+                    {/* 🩺 لو اليوزر دكــتـور يظهر الفورم ده */}
+                    {userRole === 'doctor' && (
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* الـ Dropdown للتخصصات */}
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-black text-gray-700">Specialty</label>
+                                    <select
+                                        name="specialty"
+                                        value={doctorData.specialty || ''}
+                                        onChange={handleDoctorChange}
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#00796b] focus:border-transparent transition-all cursor-pointer"
+                                        required
+                                    >
+                                        <option value="" disabled>Select your specialty</option>
+                                        {specialties.map((spec) => (
+                                            <option key={spec.id} value={spec.id}>
+                                                {spec.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                        {userRole === 'doctor' && (
-                            <>
-                                <Grid item xs={12}>
-                                    <TextField
-                                        label={t('profile.specialty')}
-                                        fullWidth
-                                        variant="outlined"
-                                        value={specialty}
-                                        disabled
-                                        helperText="Specialty is managed by the admin"
+                                {/* Consultation Fee */}
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-black text-gray-700">Consultation Fee ($)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        name="consultation_fee"
+                                        value={doctorData.consultation_fee}
+                                        onChange={handleDoctorChange}
+                                        placeholder="e.g. 250"
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#00796b] focus:border-transparent transition-all"
                                     />
-                                </Grid>
-                                <Grid item xs={12}>
-                                    <TextField
-                                        label={t('profile.bio')}
-                                        fullWidth
-                                        variant="outlined"
-                                        multiline
-                                        rows={4}
-                                        value={bio}
-                                        onChange={(e) => setBio(e.target.value)}
-                                    />
-                                </Grid>
-                            </>
-                        )}
+                                </div>
 
-                        <Grid
-                            item
-                            xs={12}
-                            sx={{
-                                mt: 2,
-                                display: 'flex',
-                                justifyContent: 'end',
-                            }}
+                                {/* Clinic Address */}
+                                <div className="flex flex-col gap-2 md:col-span-2">
+                                    <label className="text-sm font-black text-gray-700">Clinic Address</label>
+                                    <input
+                                        type="text"
+                                        name="clinic_address"
+                                        value={doctorData.clinic_address}
+                                        onChange={handleDoctorChange}
+                                        placeholder="e.g. 12 El-Tahrir St, Cairo"
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#00796b] focus:border-transparent transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Biography */}
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-black text-gray-700">Biography / Notes</label>
+                                <textarea
+                                    name="bio"
+                                    value={doctorData.bio}
+                                    onChange={handleDoctorChange}
+                                    rows="4"
+                                    placeholder="Write a brief description..."
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#00796b] focus:border-transparent transition-all resize-none"
+                                ></textarea>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 🩸 لو اليوزر مـريـض يظهر الفورم ده */}
+                    {userRole === 'patient' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Date of Birth */}
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-black text-gray-700">Date of Birth</label>
+                                <input
+                                    type="date"
+                                    name="date_of_birth"
+                                    value={patientData.date_of_birth || ''}
+                                    onChange={handlePatientChange}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#00796b] focus:border-transparent transition-all"
+                                />
+                            </div>
+
+                            {/* Gender */}
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-black text-gray-700">Gender</label>
+                                <select
+                                    name="gender"
+                                    value={patientData.gender || ''}
+                                    onChange={handlePatientChange}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#00796b] focus:border-transparent transition-all cursor-pointer"
+                                >
+                                    <option value="">Select Gender</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </div>
+
+                            {/* Blood Type */}
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-black text-gray-700">Blood Type</label>
+                                <input
+                                    type="text"
+                                    name="blood_type"
+                                    value={patientData.blood_type || ''}
+                                    onChange={handlePatientChange}
+                                    placeholder="e.g. A+, O-"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#00796b] focus:border-transparent transition-all"
+                                />
+                            </div>
+
+                            {/* Address */}
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-black text-gray-700">Address</label>
+                                <input
+                                    type="text"
+                                    name="address"
+                                    value={patientData.address || ''}
+                                    onChange={handlePatientChange}
+                                    placeholder="Your address"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#00796b] focus:border-transparent transition-all"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Submit Button */}
+                    <div className="flex justify-end pt-4">
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="px-6 py-3 bg-[#00796b] hover:bg-[#004d40] text-white font-black rounded-xl shadow-md transition-all transform active:scale-98 disabled:opacity-50 disabled:scale-100 cursor-pointer text-center min-w-[140px]"
                         >
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                size="large"
-                                disabled={loading}
-                                startIcon={<SaveIcon />}
-                                sx={{
-                                    bgcolor: '#00796b',
-                                    '&:hover': { bgcolor: '#004d40' },
-                                    fontWeight: 'bold',
-                                    px: 4,
-                                    borderRadius: 2,
-                                }}
-                            >
-                                {loading
-                                    ? t('profile.savingChanges')
-                                    : t('profile.saveProfile')}
-                            </Button>
-                        </Grid>
-                    </Grid>
-                </Box>
-            </Paper>
-        </Container>
+                            {loading ? 'Saving...' : 'Save Profile'}
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
     );
 };

@@ -1,6 +1,19 @@
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, FormControl, InputLabel, Select, MenuItem, Button, Typography, Paper } from '@mui/material';
+import { useMemo, useState } from 'react';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, FormControl, InputLabel, Select, MenuItem, Button, Typography, Paper, TablePagination } from '@mui/material';
 
 export const DoctorsPanel = ({ doctors, getDoctorDraft, onDoctorDraftChange, onUpdateDoctor }) => {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const visibleDoctors = useMemo(
+    () => doctors.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [doctors, page, rowsPerPage]
+  );
+
+  const handleRowsPerPageChange = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
   return (
     <Paper elevation={3} sx={{ p: 3, borderRadius: 3 }}>
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
@@ -12,6 +25,9 @@ export const DoctorsPanel = ({ doctors, getDoctorDraft, onDoctorDraftChange, onU
             <TableRow>
               <TableCell>Doctor Name</TableCell>
               <TableCell>Specialty</TableCell>
+              <TableCell>Fee</TableCell>
+              <TableCell>Location</TableCell>
+              <TableCell>Phone</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Notes / Bio</TableCell>
               <TableCell>Actions</TableCell>
@@ -20,12 +36,12 @@ export const DoctorsPanel = ({ doctors, getDoctorDraft, onDoctorDraftChange, onU
           <TableBody>
             {doctors.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                   No doctor records found.
                 </TableCell>
               </TableRow>
             ) : (
-              doctors.map((doctor) => {
+              visibleDoctors.map((doctor) => {
                 const draft = getDoctorDraft(doctor);
                 return (
                   <TableRow key={doctor.id} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
@@ -36,6 +52,33 @@ export const DoctorsPanel = ({ doctors, getDoctorDraft, onDoctorDraftChange, onU
                         onChange={(e) => onDoctorDraftChange(doctor.id, 'specialty', e.target.value)}
                         size="small"
                         placeholder="Specialty"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        value={draft.consultationFee}
+                        onChange={(e) => onDoctorDraftChange(doctor.id, 'consultationFee', e.target.value)}
+                        size="small"
+                        type="number"
+                        placeholder="Fee"
+                        sx={{ width: 90 }}
+                        inputProps={{ min: 0 }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        value={draft.location}
+                        onChange={(e) => onDoctorDraftChange(doctor.id, 'location', e.target.value)}
+                        size="small"
+                        placeholder="Location"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        value={draft.phone}
+                        onChange={(e) => onDoctorDraftChange(doctor.id, 'phone', e.target.value)}
+                        size="small"
+                        placeholder="Phone"
                       />
                     </TableCell>
                     <TableCell>
@@ -73,6 +116,15 @@ export const DoctorsPanel = ({ doctors, getDoctorDraft, onDoctorDraftChange, onU
           </TableBody>
         </Table>
       </TableContainer>
+      <TablePagination
+        component="div"
+        count={doctors.length}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        onPageChange={(event, newPage) => setPage(newPage)}
+        rowsPerPageOptions={[5, 10, 25]}
+        onRowsPerPageChange={handleRowsPerPageChange}
+      />
     </Paper>
   );
 };

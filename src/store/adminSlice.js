@@ -47,11 +47,10 @@ export const fetchConfigs = createAsyncThunk('admin/fetchConfigs', async () => {
 export const updateUserStatus = createAsyncThunk(
     'admin/updateUserStatus',
     async ({ userId, status }) => {
-        if (status === 'approved') {
+        if (status === 'approved')
             await axiosInstance.post(`/users/${userId}/approve/`);
-        } else if (status === 'blocked') {
+        else if (status === 'blocked')
             await axiosInstance.post(`/users/${userId}/block/`);
-        }
         return { userId, status };
     }
 );
