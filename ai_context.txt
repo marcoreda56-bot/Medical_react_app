@@ -304,6 +304,101 @@ export default App;
 
 ==================== src/api/axios.js ====================
 
+
+
+
+
+import { createContext, useContext, useState } from 'react';
+import { authAPI } from '../services/api';
+
+const AuthContext = createContext();
+
+export const AuthProvider = ({ children }) => {
+    const [currentUser, setCurrentUser] = useState(() => {
+        const token = localStorage.getItem('access_token');
+        const username = localStorage.getItem('username');
+        const uid = localStorage.getItem('user_uid');
+        return token ? { token, username, uid } : null;
+    });
+
+    const [userRole, setUserRole] = useState(() => {
+        return localStorage.getItem('user_role') || null;
+    });
+
+    const [loading, setLoading] = useState(false); 
+
+    const login = async (username, password) => {
+        setLoading(true);
+        try {
+            const response = await authAPI.login(username, password);
+            const { access, refresh, role, username: resUsername, uid } = response.data;
+
+            localStorage.setItem('access_token', access);
+            localStorage.setItem('refresh_token', refresh);
+            localStorage.setItem('user_role', role);
+            localStorage.setItem('username', resUsername);
+            localStorage.setItem('user_uid', uid);
+
+            setCurrentUser({ token: access, username: resUsername, uid });
+            setUserRole(role);
+            setLoading(false);
+            return { success: true, role };
+        } catch (error) {
+            setLoading(false);
+            console.error('Login error:', error.response?.data || error.message);
+            throw new Error(error.response?.data?.detail || 'Invalid username or password.', { cause: error });
+        }
+    };
+
+    const register = async (userData) => {
+        setLoading(true);
+        try {
+            await authAPI.register(userData);
+            setLoading(false);
+            return await login(userData.username, userData.password);
+        } catch (error) {
+            setLoading(false);
+            console.error('Registration error:', error.response?.data || error.message);
+            
+            const errorData = error.response?.data;
+            let errorMsg = 'Registration failed. Please try again.';
+
+            if (errorData) {
+                // تحويل الداتا لنص صغير عشان نعمل فحص ذكي وسريع على الكلمات المفتاحية
+                const dataString = JSON.stringify(errorData).toLowerCase();
+                
+                if (dataString.includes('already exists') || dataString.includes('already registered') || dataString.includes('unique')) {
+                    errorMsg = 'This email or username is already registered. Please use another one or sign in.';
+                } else if (typeof errorData === 'object') {
+                    // لو فيه أخطاء تانية مجمعة (زي إن الباسورد ضعيف أو الحقول ناقصة) بيعرضها بشكل منسق
+                    errorMsg = Object.values(errorData).flat().join(' | ');
+                }
+            } else if (error.message.includes('Network Error')) {
+                errorMsg = 'Network error. Please check your internet connection or server status.';
+            }
+
+            // بنرمي الخطأ بالرسالة المفهومة والنظيفة لصفحة الـ Register
+            throw new Error(errorMsg, { cause: error });
+        }
+    };
+
+    const logout = () => {
+        localStorage.clear();
+        setCurrentUser(null);
+        setUserRole(null);
+    };
+
+    const value = { 
+        currentUser, 
+        userRole, 
+        userName: currentUser?.username || '', 
+        loading, 
+        login, 
+        register, 
+        logout 
+    };
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 import axios from 'axios';
 
 const axiosInstance = axios.create({
@@ -350,7 +445,6 @@ axiosInstance.interceptors.response.use(
 
 export default axiosInstance;
 
-==================== src/api/auth.js ====================
 
 import axiosInstance from './axios';
 
@@ -377,7 +471,6 @@ export const refreshToken = async (refresh) => {
     return res.data;
 };
 
-==================== src/context/AuthContext.jsx ====================
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import axiosInstance from '../api/axios';
@@ -985,7 +1078,19 @@ export const LanguageProvider = ({ children }) => {
 // eslint-disable-next-line react-refresh/only-export-components
 export const useLanguage = () => useContext(LanguageContext);
 
-==================== src/context/NotificationsContext.jsx ====================
+
+import { createContext, useContext, useEffect, useState } from 'react';
+import { db } from '../firebase/config';
+import {
+    collection,
+    query,
+    where,
+    onSnapshot,
+    addDoc,
+    updateDoc,
+    doc,
+    serverTimestamp,
+} from 'firebase/firestore';
 
 import {
     createContext,
@@ -1123,7 +1228,234 @@ export const store = configureStore({
   },
 });
 
-==================== src/store/adminSlice.js ====================
+
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { db } from '../firebase/config';
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  addDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+} from 'firebase/firestore';
+
+const initialState = {
+  users: [],
+  doctors: [],
+  specialties: [],
+  appointments: [],
+  configs: [],
+  status: 'idle',
+  error: null,
+};
+
+export const fetchAllUsers = createAsyncThunk('admin/fetchAllUsers', async () => {
+  const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+});
+
+export const fetchDoctors = createAsyncThunk('admin/fetchDoctors', async () => {
+  const usersQuery = query(collection(db, 'users'), where('role', '==', 'doctor'));
+  const usersSnapshot = await getDocs(usersQuery);
+  const profilesSnapshot = await getDocs(collection(db, 'doctors_profiles'));
+  const profiles = new Map(profilesSnapshot.docs.map((docSnap) => [docSnap.id, docSnap.data()]));
+
+  return usersSnapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+    profile: profiles.get(docSnap.id) || {},
+  }));
+});
+
+export const fetchSpecialties = createAsyncThunk('admin/fetchSpecialties', async () => {
+  const snapshot = await getDocs(collection(db, 'specialties'));
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+});
+
+export const fetchAppointments = createAsyncThunk('admin/fetchAppointments', async () => {
+  const snapshot = await getDocs(collection(db, 'appointments'));
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+});
+
+export const fetchConfigs = createAsyncThunk('admin/fetchConfigs', async () => {
+  const snapshot = await getDocs(collection(db, 'system_configs'));
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+});
+
+export const updateUserStatus = createAsyncThunk(
+  'admin/updateUserStatus',
+  async ({ userId, status }) => {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, { status });
+    return { userId, status };
+  }
+);
+
+export const addSpecialty = createAsyncThunk('admin/addSpecialty', async ({ name, description }) => {
+  const docRef = await addDoc(collection(db, 'specialties'), {
+    name,
+    description,
+    createdAt: new Date(),
+  });
+  return { id: docRef.id, name, description };
+});
+
+export const updateSpecialty = createAsyncThunk(
+  'admin/updateSpecialty',
+  async ({ specialtyId, name, description }) => {
+    const specialtyRef = doc(db, 'specialties', specialtyId);
+    await updateDoc(specialtyRef, { name, description });
+    return { specialtyId, name, description };
+  }
+);
+
+export const deleteSpecialty = createAsyncThunk('admin/deleteSpecialty', async ({ specialtyId }) => {
+  const specialtyRef = doc(db, 'specialties', specialtyId);
+  await deleteDoc(specialtyRef);
+  return { specialtyId };
+});
+
+export const updateDoctorProfile = createAsyncThunk(
+  'admin/updateDoctorProfile',
+  async ({ doctorId, specialty, bio, status, consultationFee, location, phone }) => {
+    const profileRef = doc(db, 'doctors_profiles', doctorId);
+    await setDoc(
+      profileRef,
+      {
+        doctor_id: doctorId,
+        specialty,
+        bio,
+        consultationFee: Number(consultationFee) || 0,
+        location,
+        phone,
+      },
+      { merge: true }
+    );
+    if (status) {
+      const userRef = doc(db, 'users', doctorId);
+      await updateDoc(userRef, { status });
+    }
+    return { doctorId, specialty, bio, status, consultationFee: Number(consultationFee) || 0, location, phone };
+  }
+);
+
+export const addConfig = createAsyncThunk('admin/addConfig', async ({ configKey, configValue }) => {
+  const docRef = await addDoc(collection(db, 'system_configs'), {
+    key: configKey,
+    value: configValue,
+    createdAt: new Date(),
+  });
+  return { id: docRef.id, key: configKey, value: configValue };
+});
+
+export const updateConfig = createAsyncThunk(
+  'admin/updateConfig',
+  async ({ configId, key, value }) => {
+    const configRef = doc(db, 'system_configs', configId);
+    await updateDoc(configRef, { key, value });
+    return { configId, key, value };
+  }
+);
+
+export const deleteConfig = createAsyncThunk('admin/deleteConfig', async ({ configId }) => {
+  const configRef = doc(db, 'system_configs', configId);
+  await deleteDoc(configRef);
+  return { configId };
+});
+
+const adminSlice = createSlice({
+  name: 'admin',
+  initialState,
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchAllUsers.pending, (state) => {
+        state.status = 'loading';
+      })
+      .addCase(fetchAllUsers.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.users = action.payload;
+      })
+      .addCase(fetchAllUsers.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.error.message;
+      })
+      .addCase(fetchDoctors.fulfilled, (state, action) => {
+        state.doctors = action.payload;
+      })
+      .addCase(fetchSpecialties.fulfilled, (state, action) => {
+        state.specialties = action.payload;
+      })
+      .addCase(fetchAppointments.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(fetchAppointments.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.appointments = action.payload;
+      })
+      .addCase(fetchAppointments.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.error.message;
+      })
+      .addCase(fetchConfigs.fulfilled, (state, action) => {
+        state.configs = action.payload;
+      })
+      .addCase(updateUserStatus.fulfilled, (state, action) => {
+        const { userId, status } = action.payload;
+        state.users = state.users.map((user) => (user.id === userId ? { ...user, status } : user));
+        state.doctors = state.doctors.map((doctor) =>
+          doctor.id === userId ? { ...doctor, status } : doctor
+        );
+      })
+      .addCase(addSpecialty.fulfilled, (state, action) => {
+        state.specialties.unshift(action.payload);
+      })
+      .addCase(updateSpecialty.fulfilled, (state, action) => {
+        const { specialtyId, name, description } = action.payload;
+        state.specialties = state.specialties.map((item) =>
+          item.id === specialtyId ? { ...item, name, description } : item
+        );
+      })
+      .addCase(deleteSpecialty.fulfilled, (state, action) => {
+        state.specialties = state.specialties.filter((item) => item.id !== action.payload.specialtyId);
+      })
+      .addCase(updateDoctorProfile.fulfilled, (state, action) => {
+        const { doctorId, specialty, bio, status, consultationFee, location, phone } = action.payload;
+        state.doctors = state.doctors.map((doctor) =>
+          doctor.id === doctorId
+            ? {
+                ...doctor,
+                profile: { ...doctor.profile, specialty, bio, consultationFee, location, phone },
+                status: status || doctor.status,
+              }
+            : doctor
+        );
+        if (status) {
+          state.users = state.users.map((user) =>
+            user.id === doctorId ? { ...user, status } : user
+          );
+        }
+      })
+      .addCase(addConfig.fulfilled, (state, action) => {
+        state.configs.unshift(action.payload);
+      })
+      .addCase(updateConfig.fulfilled, (state, action) => {
+        const { configId, key, value } = action.payload;
+        state.configs = state.configs.map((config) =>
+          config.id === configId ? { ...config, key, value } : config
+        );
+      })
+      .addCase(deleteConfig.fulfilled, (state, action) => {
+        state.configs = state.configs.filter((config) => config.id !== action.payload.configId);
+      });
+  },
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axiosInstance from '../api/axios';
@@ -1337,7 +1669,6 @@ const adminSlice = createSlice({
 
 export default adminSlice.reducer;
 
-==================== src/services/api.js ====================
 
 import axiosInstance from '../api/axios';
 
@@ -1658,6 +1989,90 @@ export default Landing;
 
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { authAPI } from '../services/api'; 
+import Swal from 'sweetalert2';
+import { useLanguage } from '../context/LanguageContext';
+
+const Register = () => {
+  const navigate = useNavigate();
+  const { t } = useLanguage();
+
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState('patient');
+  const [loading, setLoading] = useState(false); 
+
+  const Toast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+  });
+
+  const validateForm = () => {
+    if (name.trim().length < 3) {
+      Toast.fire({ icon: 'error', title: t('register.toast.invalidName') });
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Toast.fire({ icon: 'error', title: t('register.toast.invalidEmail') });
+      return false;
+    }
+    if (password.length < 6) {
+      Toast.fire({ icon: 'error', title: t('register.toast.invalidPassword') });
+      return false;
+    }
+    if (password !== confirmPassword) {
+      Toast.fire({ icon: 'error', title: t('register.toast.passwordMismatch') });
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm() || loading) return;
+
+    setLoading(true);
+
+    const nameParts = name.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || 'User';
+
+    const userData = {
+      username: email, 
+      email: email,
+      password: password,
+      role: role,
+      first_name: firstName,
+      last_name: lastName,
+      phone: ''
+    };
+
+    try {
+      await authAPI.register(userData);
+      
+      Swal.fire({
+        title: 'Account Registered',
+        text: 'Please check your email. We have sent a verification code (OTP) to activate your account.',
+        icon: 'success',
+        confirmButtonColor: '#00796b',
+        confirmButtonText: 'Enter OTP',
+      }).then(() => {
+        navigate('/verify-otp', { state: { email: email } });
+      });
+    } catch (err) {
+      console.error(err);
+      Toast.fire({ 
+        icon: 'error', 
+        title: err.response?.data?.error || err.message || t('register.toast.failed') 
 import { Link, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import {
@@ -1938,7 +2353,6 @@ const Login = () => {
 
 export default Login;
 
-==================== src/pages/register.jsx ====================
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -2472,7 +2886,6 @@ const Register = () => {
 
 export default Register;
 
-==================== src/pages/VerifyOTP.jsx ====================
 
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -3004,7 +3417,6 @@ const NotificationsPage = () => {
 
 export default NotificationsPage;
 
-==================== src/pages/AppointmentDetail.jsx ====================
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -4986,7 +5398,6 @@ export const AdminDashBoard = () => {
   );
 };
 
-==================== src/components/NavBar.jsx ====================
 
 import { useAuth } from '../context/AuthContext';
 import { useState, useRef, useEffect } from 'react';

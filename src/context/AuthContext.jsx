@@ -48,12 +48,12 @@ export const AuthProvider = ({ children }) => {
     };
 
     const login = async (email, password) => {
-        const res = await axiosInstance.post('/auth/login/', { email, password });
-        saveTokens(res.data.access, res.data.refresh);
-        const meRes = await axiosInstance.get('/users/me/');
-        applyUser(meRes.data);
-        return meRes.data;
-    };
+        const res = await axiosInstance.post('/auth/login/', {
+            email,
+            password,
+        });
+        localStorage.setItem('access_token', res.data.access);
+        localStorage.setItem('refresh_token', res.data.refresh);
 
     const loginWithGoogle = async (credential, role = 'patient') => {
         const res = await axiosInstance.post('/auth/google/', { credential, role });
