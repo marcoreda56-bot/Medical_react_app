@@ -106,17 +106,59 @@ export const PatientDashBoard = () => {
         const result = await Swal.fire({
             title: 'Pay & Book Appointment',
             html: `
-                <div style="text-align:left;" class="space-y-3 text-sm text-gray-700">
-                    <p><strong>Doctor:</strong> Dr. ${doctorName}</p>
-                    <p><strong>Appointment:</strong> ${dayLabel} at ${displayTime}</p>
-                    <p><strong>Amount:</strong> ${amount} EGP</p>
-                    <hr class="border-gray-200 my-2" />
-                    <input id="payment-card-name" class="swal2-input" placeholder="Cardholder name" style="width:100%; margin: 8px 0;" />
-                    <input id="payment-card-number" class="swal2-input" placeholder="Card number" maxlength="19" style="width:100%; margin: 8px 0;" />
-                    <div style="display:flex; gap:8px;">
-                        <input id="payment-card-expiry" class="swal2-input" placeholder="MM/YY" maxlength="5" style="width:50%;" />
-                        <input id="payment-card-cvv" class="swal2-input" placeholder="CVV" maxlength="4" type="password" style="width:50%;" />
+                <div style="text-align:left;" class="space-y-4 text-sm text-gray-700 font-sans">
+                    <div style="margin-bottom: 12px; line-height: 1.6;">
+                        <p style="margin: 0; color: #1e293b;"><strong>Doctor:</strong> Dr. ${doctorName}</p>
+                        <p style="margin: 0; color: #1e293b;"><strong>Appointment:</strong> ${dayLabel} at ${displayTime}</p>
                     </div>
+
+                    <div style="background-color: #f8fafc; padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
+                        <p style="font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">Fee Breakdown:</p>
+                        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                            <span style="color: #64748b;">Consultation Fee:</span>
+                            <span style="font-weight: 600; color: #0f172a;">${amount.toFixed(2)} EGP</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                            <span style="color: #64748b;">Website Share (10%):</span>
+                            <span style="font-weight: 600; color: #64748b;">${(amount * 0.1).toFixed(2)} EGP</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                            <span style="color: #64748b;">Doctor Payout (90%):</span>
+                            <span style="font-weight: 600; color: #64748b;">${(amount * 0.9).toFixed(2)} EGP</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 6px;">
+                            <span style="color: #0f172a;">Total Amount to Pay:</span>
+                            <span style="color: #0f172a; font-size: 15px;">${amount.toFixed(2)} EGP</span>
+                        </div>
+                    </div>
+                    
+
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
+
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <div>
+                            <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Cardholder Name</label>
+                            <input id="payment-card-name" class="swal2-input" placeholder="Cardholder name" value="John Doe" style="width:100%; margin: 0; padding: 10px; height: auto; box-sizing: border-box;" />
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Card Number</label>
+                            <input id="payment-card-number" class="swal2-input" placeholder="Card number" value="4242 4242 4242 4242" maxlength="19" style="width:100%; margin: 0; padding: 10px; height: auto; box-sizing: border-box;" />
+                        </div>
+                        <div style="display:flex; gap:8px;">
+                            <div style="flex:1;">
+                                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Expiry Date</label>
+                                <input id="payment-card-expiry" class="swal2-input" placeholder="MM/YY" value="12/30" maxlength="5" style="width:100%; margin: 0; padding: 10px; height: auto; box-sizing: border-box;" />
+                            </div>
+                            <div style="flex:1;">
+                                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">CVV</label>
+                                <input id="payment-card-cvv" class="swal2-input" placeholder="CVV" value="123" maxlength="4" type="password" style="width:100%; margin: 0; padding: 10px; height: auto; box-sizing: border-box;" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="font-size: 11px; color: #64748b; margin-top: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
+                        <span>💡</span> Test details are pre-filled for offline mock payment validation.
+                    </p>
                 </div>
             `,
             icon: 'info',
@@ -195,7 +237,7 @@ export const PatientDashBoard = () => {
     const statusStyles = {
         Completed: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
         Confirmed: 'bg-sky-50 text-sky-700 border border-sky-100',
-        Pending:   'bg-amber-50 text-amber-700 border border-amber-100',
+        Pending: 'bg-amber-50 text-amber-700 border border-amber-100',
         Cancelled: 'bg-red-50 text-red-600 border border-red-100',
     };
 
@@ -318,16 +360,15 @@ export const PatientDashBoard = () => {
                 <div className="flex border-b border-slate-200 gap-7">
                     {[
                         { label: 'Book Appointment', icon: '🏥' },
-                        { label: 'My Bookings',      icon: '📅' },
+                        { label: 'My Bookings', icon: '📅' },
                     ].map((tab, i) => (
                         <button
                             key={i}
                             onClick={() => setActiveTab(i)}
-                            className={`pb-3.5 font-semibold text-sm transition-all relative cursor-pointer flex items-center gap-1.5 ${
-                                activeTab === i
+                            className={`pb-3.5 font-semibold text-sm transition-all relative cursor-pointer flex items-center gap-1.5 ${activeTab === i
                                     ? 'text-[#0f172a] border-b-2 border-[#0f172a]'
                                     : 'text-slate-500 hover:text-slate-700'
-                            }`}
+                                }`}
                         >
                             <span>{tab.icon}</span> {tab.label}
                         </button>
