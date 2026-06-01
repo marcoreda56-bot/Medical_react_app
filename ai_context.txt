@@ -10,7 +10,9 @@ src
 │   ├── react.svg
 │   └── vite.svg
 ├── components
-│   └── NavBar.jsx
+│   ├── DoctorReviews.jsx
+│   ├── NavBar.jsx
+│   └── ReviewModal.jsx
 ├── context
 │   ├── AuthContext.jsx
 │   ├── LanguageContext.jsx
@@ -53,7 +55,8 @@ src
     ├── adminSlice.js
     └── store.js
 
-14 directories, 39 files
+14 directories, 41 files
+
 
 ==================== src/main.jsx ====================
 
@@ -65,9 +68,13 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import { NotificationsProvider } from './context/NotificationsContext.jsx';
 import { Provider } from 'react-redux';
 import { store } from './store/store';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 
 createRoot(document.getElementById('root')).render(
     <StrictMode>
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <AuthProvider>
             <NotificationsProvider>
                 <Provider store={store}>
@@ -75,8 +82,10 @@ createRoot(document.getElementById('root')).render(
                 </Provider>
             </NotificationsProvider>
         </AuthProvider>
+        </GoogleOAuthProvider>  
     </StrictMode>
 );
+
 
 ==================== src/App.jsx ====================
 
@@ -325,16 +334,23 @@ axiosInstance.interceptors.response.use(
     (response) => response,
     async (error) => {
         const original = error.config;
-        if (error.response?.status === 401 && !original._retry) {
+
+        const isAuthEndpoint =
+            original.url.includes('/auth/login/') ||
+            original.url.includes('/auth/refresh/') ||
+            original.url.includes('/auth/verify-otp/');
+
+        if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
             original._retry = true;
             try {
                 const refresh = localStorage.getItem('refresh_token');
+                if (!refresh) throw new Error('No refresh token');
+
                 const res = await axios.post(
                     'http://localhost:8000/api/auth/refresh/',
-                    {
-                        refresh,
-                    }
+                    { refresh }
                 );
+                
                 localStorage.setItem('access_token', res.data.access);
                 original.headers.Authorization = `Bearer ${res.data.access}`;
                 return axiosInstance(original);
@@ -344,6 +360,7 @@ axiosInstance.interceptors.response.use(
                 window.location.href = '/login';
             }
         }
+
         return Promise.reject(error);
     }
 );
@@ -364,9 +381,9 @@ export const verifyOTP = async (email, otp) => {
     return res.data;
 };
 
-export const loginUser = async (username, password) => {
+export const loginUser = async (email, password) => {
     const res = await axiosInstance.post('/auth/login/', {
-        username,
+        email,
         password,
     });
     return res.data;
@@ -391,6 +408,18 @@ export const AuthProvider = ({ children }) => {
     const [userName, setUserName] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const applyUser = (user) => {
+        setCurrentUser(user);
+        setUserRole(user.role);
+        setUserStatus(user.is_active ? 'approved' : 'pending');
+        setUserName(user.full_name || user.username);
+    };
+
+    const saveTokens = (access, refresh) => {
+        localStorage.setItem('access_token', access);
+        localStorage.setItem('refresh_token', refresh);
+    };
+
     useEffect(() => {
         const token = localStorage.getItem('access_token');
         if (!token) {
@@ -399,13 +428,7 @@ export const AuthProvider = ({ children }) => {
         }
         axiosInstance
             .get('/users/me/')
-            .then((res) => {
-                const user = res.data;
-                setCurrentUser(user);
-                setUserRole(user.role);
-                setUserStatus(user.is_active ? 'approved' : 'pending');
-                setUserName(user.full_name || user.username);
-            })
+            .then((res) => applyUser(res.data))
             .catch(() => {
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('refresh_token');
@@ -413,36 +436,29 @@ export const AuthProvider = ({ children }) => {
             .finally(() => setLoading(false));
     }, []);
 
-    const register = async (email, password, name, role) => {
+    const register = async ({ email, password, name = '', role, phone = '' }) => {
         const [first_name, ...rest] = name.trim().split(' ');
         const last_name = rest.join(' ');
-        const username = email.split('@')[0] + Math.floor(Math.random() * 1000);
         const res = await axiosInstance.post('/register/', {
-            username,
-            email,
-            password,
-            role,
-            first_name,
-            last_name,
+            email, password, role, phone, first_name, last_name,
         });
         return res.data;
     };
 
     const login = async (email, password) => {
-        const res = await axiosInstance.post('/auth/login/', {
-            username: email,
-            password,
-        });
-        localStorage.setItem('access_token', res.data.access);
-        localStorage.setItem('refresh_token', res.data.refresh);
-
+        const res = await axiosInstance.post('/auth/login/', { email, password });
+        saveTokens(res.data.access, res.data.refresh);
         const meRes = await axiosInstance.get('/users/me/');
-        const user = meRes.data;
-        setCurrentUser(user);
-        setUserRole(user.role);
-        setUserStatus(user.is_active ? 'approved' : 'pending');
-        setUserName(user.full_name || user.username);
-        return user;
+        applyUser(meRes.data);
+        return meRes.data;
+    };
+
+    const loginWithGoogle = async (credential, role = 'patient') => {
+        const res = await axiosInstance.post('/auth/google/', { credential, role });
+        saveTokens(res.data.access, res.data.refresh);
+        const meRes = await axiosInstance.get('/users/me/');
+        applyUser(meRes.data);
+        return meRes.data;
     };
 
     const logout = () => {
@@ -454,19 +470,11 @@ export const AuthProvider = ({ children }) => {
         setUserName(null);
     };
 
-    const value = {
-        currentUser,
-        userRole,
-        userStatus,
-        userName,
-        loading,
-        register,
-        login,
-        logout,
-    };
-
     return (
-        <AuthContext.Provider value={value}>
+        <AuthContext.Provider value={{
+            currentUser, userRole, userStatus, userName, loading,
+            register, login, loginWithGoogle, logout,
+        }}>
             {!loading && children}
         </AuthContext.Provider>
     );
@@ -985,6 +993,7 @@ export const LanguageProvider = ({ children }) => {
 // eslint-disable-next-line react-refresh/only-export-components
 export const useLanguage = () => useContext(LanguageContext);
 
+
 ==================== src/context/NotificationsContext.jsx ====================
 
 import {
@@ -1070,6 +1079,7 @@ export const NotificationsProvider = ({ children }) => {
 
 export const useNotifications = () => useContext(NotificationsContext);
 
+
 ==================== src/routes/ProtectedRoute.jsx ====================
 
 import { Navigate } from 'react-router-dom';
@@ -1122,6 +1132,7 @@ export const store = configureStore({
     admin: adminReducer,
   },
 });
+
 
 ==================== src/store/adminSlice.js ====================
 
@@ -1337,51 +1348,6 @@ const adminSlice = createSlice({
 
 export default adminSlice.reducer;
 
-==================== src/services/api.js ====================
-
-import axiosInstance from '../api/axios';
-
-export default axiosInstance;
-
-export const authAPI = {
-    login: (username, password) =>
-        axiosInstance.post('/auth/login/', { username, password }),
-    register: (userData) => axiosInstance.post('/register/', userData),
-    verifyOTP: (email, otp) =>
-        axiosInstance.post('/auth/verify-otp/', { email, otp }),
-};
-
-export const doctorAPI = {
-    getApprovedDoctors: () => axiosInstance.get('/doctors/'),
-    getAvailableSlots: () => axiosInstance.get('/slots/available/'),
-    getMySlots: () => axiosInstance.get('/slots/'),
-    addSlot: (slotData) => axiosInstance.post('/slots/', slotData),
-    deleteSlot: (slotId) => axiosInstance.delete(`/slots/${slotId}/`),
-};
-
-export const appointmentAPI = {
-    getMyAppointments: () => axiosInstance.get('/appointments/'),
-    book: (data) => axiosInstance.post('/appointments/book/', data),
-    approveAppointment: (id) =>
-        axiosInstance.post(`/appointments/${id}/approve/`),
-    cancelAppointment: (id, reason) =>
-        axiosInstance.post(`/appointments/${id}/cancel/`, { reason }),
-    completeAppointment: (id, data) =>
-        axiosInstance.post(`/appointments/${id}/complete/`, data),
-};
-
-export const specialtyAPI = {
-    getSpecialties: () => axiosInstance.get('/specialties/'),
-};
-
-export const profileAPI = {
-    getDoctorProfile: () => axiosInstance.get('/doctor-profiles/me/'),
-    saveDoctorProfile: (data) =>
-        axiosInstance.patch('/doctor-profiles/me/', data),
-    getPatientProfile: () => axiosInstance.get('/patient-profiles/me/'),
-    savePatientProfile: (data) =>
-        axiosInstance.patch('/patient-profiles/me/', data),
-};
 
 ==================== src/firebase/config.js ====================
 
@@ -1520,6 +1486,7 @@ const Home = () => {
 };
 
 export default Home;
+
 
 ==================== src/pages/Landing.jsx ====================
 
@@ -1660,24 +1627,16 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
-import {
-    Grid,
-    Box,
-    Paper,
-    Avatar,
-    Typography,
-    TextField,
-    Button,
-} from '@mui/material';
-import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
-import { useLanguage } from '../context/LanguageContext';
+import { HospitalIcon } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
-    const { login } = useAuth();
-    const { t } = useLanguage();
+    const { login, loginWithGoogle } = useAuth();
     const navigate = useNavigate();
+    
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [selectedRole, setSelectedRole] = useState('patient');
 
     const Toast = Swal.mixin({
         toast: true,
@@ -1687,17 +1646,20 @@ const Login = () => {
         timerProgressBar: true,
     });
 
+    const redirectByRole = (role) => {
+        navigate(
+            role === 'doctor'  ? '/doctor'  :
+            role === 'patient' ? '/patient' : '/admin'
+        );
+    };
+
     const validateForm = () => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            Toast.fire({ icon: 'error', title: t('login.toast.invalidEmail') });
+        if (!email || !email.includes('@')) {
+            Toast.fire({ icon: 'error', title: 'Please enter a valid email address.' });
             return false;
         }
         if (password.length < 6) {
-            Toast.fire({
-                icon: 'error',
-                title: t('login.toast.invalidPassword'),
-            });
+            Toast.fire({ icon: 'error', title: 'Password must be at least 6 characters long.' });
             return false;
         }
         return true;
@@ -1705,234 +1667,119 @@ const Login = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
         if (!validateForm()) return;
+
         try {
             const user = await login(email, password);
-            Toast.fire({ icon: 'success', title: t('login.toast.success') });
-            if (user.role === 'doctor') navigate('/doctor');
-            else if (user.role === 'patient') navigate('/patient');
-            else if (user.role === 'admin') navigate('/admin');
-            else navigate('/');
+            Toast.fire({ icon: 'success', title: 'Logged in successfully!' });
+            redirectByRole(user.role);
         } catch (err) {
-            const msg = err.response?.data?.detail || err.message;
-            if (
-                msg?.includes('No active account') ||
-                msg?.includes('credentials')
-            ) {
-                Toast.fire({
-                    icon: 'error',
-                    title: t('login.toast.invalidCredentials'),
-                });
-            } else {
-                Toast.fire({ icon: 'error', title: t('login.toast.failed') });
-            }
+            Toast.fire({ icon: 'error', title: 'Invalid credentials or server error.' });
+        }
+    };
+
+    const handleGoogleSuccess = async ({ credential }) => {
+        try {
+            const user = await loginWithGoogle(credential, selectedRole);
+            Toast.fire({ icon: 'success', title: 'Google login successful!' });
+            redirectByRole(user.role);
+        } catch (err) {
+            Toast.fire({ icon: 'error', title: 'Google login failed.' });
         }
     };
 
     return (
-        <Grid container component="main" sx={{ height: '100vh' }}>
-            <Grid
-                item
-                xs={false}
-                sm={4}
-                md={7}
-                sx={{
-                    backgroundImage:
-                        'url(https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1200&q=80)',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundColor: (theme) =>
-                        theme.palette.mode === 'light'
-                            ? theme.palette.grey[50]
-                            : theme.palette.grey[900],
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    position: 'relative',
-                    display: { xs: 'none', sm: 'flex' },
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        background:
-                            'linear-gradient(135deg, rgba(0, 77, 64, 0.85) 0%, rgba(0, 121, 107, 0.6) 100%)',
-                    },
-                }}
+        <div className="flex h-screen w-full">
+            {/* Left panel */}
+            <div
+                className="hidden sm:flex w-0 sm:w-1/3 md:w-7/12 relative bg-cover bg-center items-center justify-center"
+                style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1200&q=80)' }}
             >
-                <Box
-                    sx={{
-                        position: 'relative',
-                        color: '#fff',
-                        px: 6,
-                        textAlign: 'left',
-                        maxWidth: '600px',
-                    }}
-                >
-                    <Typography
-                        variant="h3"
-                        component="h1"
-                        sx={{ fontWeight: 'bold', mb: 2, letterSpacing: 1 }}
-                    >
-                        {t('login.portalTitle')}
-                    </Typography>
-                    <Typography
-                        variant="h6"
-                        sx={{
-                            opacity: 0.9,
-                            fontWeight: 'normal',
-                            lineHeight: 1.6,
-                        }}
-                    >
-                        Empowering healthcare teams and patient coordination
-                        through advanced real-time medical insights.
-                    </Typography>
-                </Box>
-            </Grid>
+                <div className="absolute inset-0 bg-teal-900 bg-opacity-70" />
+                <div className="relative px-12 text-white max-w-lg">
+                    <h1 className="text-5xl font-bold mb-6">Medical Portal</h1>
+                    <p className="text-xl opacity-90 leading-relaxed">
+                        Empowering healthcare teams and patient coordination through advanced real-time medical insights.
+                    </p>
+                </div>
+            </div>
 
-            <Grid
-                item
-                xs={12}
-                sm={8}
-                md={5}
-                component={Paper}
-                elevation={0}
-                square
-                sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    bgcolor: '#fafafa',
-                }}
-            >
-                <Box
-                    sx={{
-                        my: 8,
-                        mx: 4,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        width: '100%',
-                        maxWidth: '400px',
-                        p: 3,
-                        bgcolor: '#fff',
-                        borderRadius: 4,
-                        boxShadow: '0px 10px 30px rgba(0,0,0,0.04)',
-                    }}
-                >
-                    <Avatar
-                        sx={{
-                            m: 1,
-                            bgcolor: '#e0f2f1',
-                            width: 64,
-                            height: 64,
-                            border: '2px solid #00796b',
-                        }}
-                    >
-                        <LocalHospitalIcon
-                            sx={{ color: '#00796b', fontSize: 35 }}
-                        />
-                    </Avatar>
-                    <Typography
-                        component="h1"
-                        variant="h4"
-                        sx={{ fontWeight: '800', color: '#00796b', mt: 1 }}
-                    >
-                        {t('login.title')}
-                    </Typography>
-                    <Typography
-                        variant="body2"
-                        color="textSecondary"
-                        sx={{ mb: 4, mt: 0.5 }}
-                    >
-                        {t('login.subtitle')}
-                    </Typography>
-                    <Box
-                        component="form"
-                        onSubmit={handleSubmit}
-                        noValidate
-                        sx={{ width: '100%' }}
-                    >
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            label={t('login.email')}
-                            type="email"
-                            autoFocus
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 2,
-                                    '&.Mui-focused fieldset': {
-                                        borderColor: '#00796b',
-                                    },
-                                },
-                                '& .MuiInputLabel-root.Mui-focused': {
-                                    color: '#00796b',
-                                },
-                            }}
-                        />
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            label={t('login.password')}
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 2,
-                                    '&.Mui-focused fieldset': {
-                                        borderColor: '#00796b',
-                                    },
-                                },
-                                '& .MuiInputLabel-root.Mui-focused': {
-                                    color: '#00796b',
-                                },
-                            }}
-                        />
-                        <Button
+            {/* Right panel */}
+            <div className="w-full sm:w-2/3 md:w-5/12 flex items-center justify-center bg-gray-50 p-8">
+                <div className="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl">
+                    <div className="flex flex-col items-center mb-8">
+                        <div className="bg-teal-50 p-4 rounded-full border-2 border-teal-700 mb-4">
+                            <HospitalIcon className="text-teal-700 w-10 h-10" />
+                        </div>
+                        <h2 className="text-3xl font-extrabold text-teal-800">Welcome Back</h2>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Email Address</label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="mt-1 w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Password</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="mt-1 w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                            />
+                        </div>
+                        <button
                             type="submit"
-                            fullWidth
-                            variant="contained"
-                            sx={{
-                                mt: 4,
-                                mb: 2,
-                                padding: 1.5,
-                                bgcolor: '#00796b',
-                                '&:hover': { bgcolor: '#004d40' },
-                                fontWeight: 'bold',
-                                borderRadius: 2.5,
-                                textTransform: 'none',
-                                fontSize: '1rem',
-                            }}
+                            className="w-full py-4 bg-teal-700 hover:bg-teal-900 text-white font-bold rounded-xl transition duration-300"
                         >
-                            {t('login.signIn')}
-                        </Button>
-                        <Box sx={{ mt: 3, textAlign: 'center' }}>
-                            <Typography variant="body2" color="textSecondary">
-                                {t('login.noAccount')}{' '}
-                                <Link
-                                    to="/register"
-                                    style={{
-                                        color: '#00796b',
-                                        textDecoration: 'none',
-                                        fontWeight: 'bold',
-                                    }}
-                                >
-                                    {t('login.createAccount')}
-                                </Link>
-                            </Typography>
-                        </Box>
-                    </Box>
-                </Box>
-            </Grid>
-        </Grid>
+                            Sign In
+                        </button>
+                    </form>
+
+                    <div className="flex items-center my-5 gap-3">
+                        <hr className="flex-1 border-gray-200" />
+                        <span className="text-xs text-gray-400 uppercase tracking-wide">or</span>
+                        <hr className="flex-1 border-gray-200" />
+                    </div>
+
+                    <div className="flex justify-center gap-6 mb-4">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                            <input type="radio" value="patient" checked={selectedRole === 'patient'} onChange={(e) => setSelectedRole(e.target.value)} />
+                            Patient
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                            <input type="radio" value="doctor" checked={selectedRole === 'doctor'} onChange={(e) => setSelectedRole(e.target.value)} />
+                            Doctor
+                        </label>
+                    </div>
+
+                    <div className="flex justify-center">
+                        <GoogleLogin
+                            onSuccess={handleGoogleSuccess}
+                            onError={() => Toast.fire({ icon: 'error', title: 'Google login failed' })}
+                            theme="outline"
+                            size="large"
+                            width="100%"
+                            locale="en"
+                        />
+                        
+                    </div>
+
+                    <p className="text-center text-sm text-gray-500 mt-6">
+                        Don't have an account?{' '}
+                        <Link to="/register" className="text-teal-700 font-bold hover:underline">
+                            Create Account
+                        </Link>
+                    </p>
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -2472,96 +2319,6 @@ const Register = () => {
 
 export default Register;
 
-==================== src/pages/VerifyOTP.jsx ====================
-
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { authAPI } from '../services/api'; 
-import Swal from 'sweetalert2';
-
-export const VerifyOTP = () => {
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const email = location.state?.email || '';
-
-  const handleVerify = async (e) => {
-    e.preventDefault();
-    if (!otp || otp.length < 6) {
-      Swal.fire({ icon: 'warning', title: 'Validation Error', text: 'Please enter a valid 6-digit OTP code.' });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await authAPI.verifyOTP(email, otp);
-
-      Swal.fire({
-        icon: 'success',
-        title: 'Account Verified!',
-        text: 'Your account has been activated successfully. You can now log in.',
-        confirmButtonColor: '#00796b',
-      });
-
-      navigate('/login');
-    } catch (err) {
-      console.error(err);
-      Swal.fire({
-        icon: 'error',
-        title: 'Verification Failed',
-        text: err.response?.data?.error || 'Invalid or expired OTP code. Please try again.',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans text-left">
-      <div className="sm:mx-auto w-full max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 rounded-3xl border border-gray-100 sm:px-10">
-          
-          <div className="text-center mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 mx-auto mb-3 shadow-xs">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286Zm0 13.036h.008v.008H12v-.008Z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-black text-gray-800 tracking-tight">Verify Your Account</h2>
-            <p className="mt-1.5 text-xs font-medium text-gray-500">
-              We have sent a 6-digit code to <span className="text-teal-600 font-bold block mt-0.5">{email || 'your email'}</span>
-            </p>
-          </div>
-
-          <form onSubmit={handleVerify} className="space-y-5">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block pl-1">Enter OTP Code</label>
-              <input
-                type="text"
-                maxLength="6"
-                placeholder="000000"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} 
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-600 focus:bg-white text-center text-xl font-black tracking-widest text-gray-800 transition-all placeholder:text-gray-300"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Verifying...' : 'Verify & Activate'}
-            </button>
-          </form>
-
-        </div>
-      </div>
-    </div>
-  );
-};
 
 ==================== src/pages/Profile.jsx ====================
 
@@ -2578,7 +2335,6 @@ export const Profile = () => {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
 
-    // الـ State الموحدة لبيانات بروفايل الدكتور
     const [doctorData, setDoctorData] = useState({
         specialty: '',
         bio: '',
@@ -2586,7 +2342,6 @@ export const Profile = () => {
         clinic_address: '',
     });
 
-    // الـ State الموحدة لبيانات بروفايل المريض
     const [patientData, setPatientData] = useState({
         date_of_birth: '',
         gender: '',
@@ -2594,14 +2349,11 @@ export const Profile = () => {
         address: '',
     });
 
-    // جلب البيانات عند تحميل الصفحة بناءً على الـ Role
     useEffect(() => {
-        // 1. جلب التخصصات (مهمة للدكتور وممكن يحتاجها المريض لرؤية التخصصات)
         specialtyAPI.getSpecialties()
             .then(res => setSpecialties(res.data))
             .catch(err => console.error('Failed to fetch specialties:', err));
 
-        // 2. جلب البيانات بناءً على نوع المستخدم
         if (userRole === 'doctor') {
             profileAPI.getDoctorProfile()
                 .then(res => {
@@ -2616,12 +2368,8 @@ export const Profile = () => {
                 })
                 .catch(err => console.error('Failed to fetch doctor profile:', err));
         } else if (userRole === 'patient') {
-            // ملحوظة: لو الباك إند لسه معملتش endpoint مخصصة لـ patient-profiles/me/
-            // تقدر تجيبها عادي بالـ Endpoints الأساسية أو نعدلها بالباك إند، حالياً هنربطها بـ endpoint المريض
-            api.get('/users/me/') // الباكيند بتاعك بيرجع بيانات اليوزر الأساسية هنا
+            api.get('/users/me/')
                 .then(res => {
-                    // هنا بنربط مع الـ Patient Profile الملحق باليوزر لو الـ serializer بيبعته، أو نكلم الـ endpoint بتاعته
-                    // فرضا أننا هنكلم المريض مباشرة بناء على تصميم الـ ViewSet
                     api.get('/patient-profiles/me/').then(pRes => {
                         setPatientData({
                             date_of_birth: pRes.data.date_of_birth || '',
@@ -2630,7 +2378,6 @@ export const Profile = () => {
                             address: pRes.data.address || '',
                         });
                     }).catch(() => {
-                        // fallback لو مفيش endpoint منفصلة وجاية مع الـ /me
                         if(res.data.profile) {
                             setPatientData(res.data.profile);
                         }
@@ -2650,7 +2397,6 @@ export const Profile = () => {
         setPatientData({ ...patientData, [name]: value });
     };
 
-    // حفظ البيانات
     const handleSaveProfile = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -2665,7 +2411,6 @@ export const Profile = () => {
                 };
                 await profileAPI.saveDoctorProfile(dataToSend);
             } else if (userRole === 'patient') {
-                // تعديل بروفايل المريض عبر الـ API الخاص به
                 await api.patch('/patient-profiles/me/', patientData);
             }
             
@@ -2687,7 +2432,6 @@ export const Profile = () => {
         <div className="min-h-screen bg-[#f6f8fb] py-10 px-4">
             <div className="max-w-3xl mx-auto bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden text-left">
                 
-                {/* Header Banner */}
                 <div className="bg-gradient-to-r from-[#00796b] to-[#004d40] px-8 py-6 text-white">
                     <h1 className="text-2xl font-black tracking-wide">
                         {userRole === 'doctor' ? 'Doctor Profile Settings' : 'Patient Profile Settings'}
@@ -2699,7 +2443,6 @@ export const Profile = () => {
 
                 <form onSubmit={handleSaveProfile} className="p-8 space-y-6">
                     
-                    {/* Feedback Alerts */}
                     {message.text && (
                         <div className={`p-4 rounded-xl text-sm font-bold flex items-center gap-2 ${
                             message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
@@ -2708,11 +2451,9 @@ export const Profile = () => {
                         </div>
                     )}
 
-                    {/* 🩺 لو اليوزر دكــتـور يظهر الفورم ده */}
                     {userRole === 'doctor' && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* الـ Dropdown للتخصصات */}
                                 <div className="flex flex-col gap-2">
                                     <label className="text-sm font-black text-gray-700">Specialty</label>
                                     <select
@@ -2731,7 +2472,6 @@ export const Profile = () => {
                                     </select>
                                 </div>
 
-                                {/* Consultation Fee */}
                                 <div className="flex flex-col gap-2">
                                     <label className="text-sm font-black text-gray-700">Consultation Fee ($)</label>
                                     <input
@@ -2744,8 +2484,6 @@ export const Profile = () => {
                                         className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#00796b] focus:border-transparent transition-all"
                                     />
                                 </div>
-
-                                {/* Clinic Address */}
                                 <div className="flex flex-col gap-2 md:col-span-2">
                                     <label className="text-sm font-black text-gray-700">Clinic Address</label>
                                     <input
@@ -2759,7 +2497,6 @@ export const Profile = () => {
                                 </div>
                             </div>
 
-                            {/* Biography */}
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-black text-gray-700">Biography / Notes</label>
                                 <textarea
@@ -2774,7 +2511,6 @@ export const Profile = () => {
                         </div>
                     )}
 
-                    {/* 🩸 لو اليوزر مـريـض يظهر الفورم ده */}
                     {userRole === 'patient' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {/* Date of Birth */}
@@ -2873,18 +2609,18 @@ import axiosInstance from '../api/axios';
 
 const NotificationsPage = () => {
     const { notifications, markAsRead } = useNotifications();
-    const navigate = useNavigate();
+    // const navigate = useNavigate();
 
-    const handleOpen = async (n) => {
-        try {
-            if (!n.read) await markAsRead(n.id);
-            if (n.data?.appointmentId)
-                navigate(`/appointments/${n.data.appointmentId}`);
-            else navigate('/notifications');
-        } catch (err) {
-            console.error(err);
-        }
-    };
+    // const handleOpen = async (n) => {
+    //     try {
+    //         if (!n.read) await markAsRead(n.id);
+    //         if (n.data?.appointmentId)
+    //             navigate(`/appointments/${n.data.appointmentId}`);
+    //         else navigate('/notifications');
+    //     } catch (err) {
+    //         console.error(err);
+    //     }
+    // };
 
     const handleDelete = async (n) => {
         const res = await Swal.fire({
@@ -3004,218 +2740,11 @@ const NotificationsPage = () => {
 
 export default NotificationsPage;
 
-==================== src/pages/AppointmentDetail.jsx ====================
-
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import {
-    Container,
-    Paper,
-    Typography,
-    Box,
-    Button,
-    TextField,
-} from '@mui/material';
-import { useAuth } from '../context/AuthContext';
-import { useNotifications } from '../context/NotificationsContext';
-import Swal from 'sweetalert2';
-
-const AppointmentDetail = () => {
-    const { id } = useParams();
-    const navigate = useNavigate();
-    const { userRole } = useAuth();
-    const { sendNotification } = useNotifications();
-    const [appointment, setAppointment] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [diagnosis, setDiagnosis] = useState('');
-    const [prescription, setPrescription] = useState('');
-
-    useEffect(() => {
-        const load = async () => {
-            const ref = doc(db, 'appointments', id);
-            const snap = await getDoc(ref);
-            if (snap.exists()) setAppointment({ id: snap.id, ...snap.data() });
-            setLoading(false);
-        };
-        load();
-    }, [id]);
-
-    const handleApprove = async () => {
-        try {
-            const ref = doc(db, 'appointments', id);
-            await updateDoc(ref, { status: 'Approved' });
-            if (appointment?.patientId)
-                await sendNotification(
-                    appointment.patientId,
-                    'Appointment approved',
-                    'Your appointment was approved.',
-                    { appointmentId: id }
-                );
-            Swal.fire('Approved', '', 'success');
-            navigate(userRole === 'doctor' ? '/doctor' : '/patient');
-        } catch (err) {
-            console.error(err);
-            Swal.fire('Failed', '', 'error');
-        }
-    };
-
-    const handleCancel = async () => {
-        try {
-            const ref = doc(db, 'appointments', id);
-            await updateDoc(ref, { status: 'Cancelled' });
-            if (appointment?.patientId)
-                await sendNotification(
-                    appointment.patientId,
-                    'Appointment cancelled',
-                    'Your appointment was cancelled.',
-                    { appointmentId: id }
-                );
-            Swal.fire('Cancelled', '', 'success');
-            navigate(userRole === 'doctor' ? '/doctor' : '/patient');
-        } catch (err) {
-            console.error(err);
-            Swal.fire('Failed', '', 'error');
-        }
-    };
-
-    const handleComplete = async () => {
-        if (!diagnosis.trim() || !prescription.trim()) {
-            Swal.fire('Please fill diagnosis and prescription', '', 'warning');
-            return;
-        }
-        try {
-            const ref = doc(db, 'appointments', id);
-            await updateDoc(ref, {
-                status: 'Completed',
-                medicalRecord: {
-                    diagnosis,
-                    prescription,
-                    date: new Date().toLocaleDateString(),
-                },
-            });
-            if (appointment?.patientId)
-                await sendNotification(
-                    appointment.patientId,
-                    'Visit completed',
-                    'Your visit was completed and prescription is available.',
-                    { appointmentId: id }
-                );
-            Swal.fire('Completed', '', 'success');
-            navigate(userRole === 'doctor' ? '/doctor' : '/patient');
-        } catch (err) {
-            console.error(err);
-            Swal.fire('Failed', '', 'error');
-        }
-    };
-
-    if (loading)
-        return (
-            <Container sx={{ mt: 4 }}>
-                <Typography>Loading...</Typography>
-            </Container>
-        );
-    if (!appointment)
-        return (
-            <Container sx={{ mt: 4 }}>
-                <Typography>No appointment found.</Typography>
-            </Container>
-        );
-
-    return (
-        <Container maxWidth="md" sx={{ mt: 4 }}>
-            <Paper sx={{ p: 3 }} elevation={3}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2 }}>
-                    Appointment Details
-                </Typography>
-                <Typography>
-                    <strong>Patient:</strong> {appointment.patientName}
-                </Typography>
-                <Typography>
-                    <strong>Doctor:</strong> {appointment.doctorName}
-                </Typography>
-                <Typography>
-                    <strong>Day / Time:</strong> {appointment.day}{' '}
-                    {appointment.time}
-                </Typography>
-                <Typography>
-                    <strong>Status:</strong> {appointment.status}
-                </Typography>
-
-                <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
-                    {userRole === 'doctor' &&
-                        appointment.status === 'Pending' && (
-                            <>
-                                <Button
-                                    variant="contained"
-                                    color="primary"
-                                    onClick={handleApprove}
-                                >
-                                    Approve
-                                </Button>
-                                <Button
-                                    variant="outlined"
-                                    color="error"
-                                    onClick={handleCancel}
-                                >
-                                    Reject / Cancel
-                                </Button>
-                            </>
-                        )}
-
-                    {userRole === 'patient' &&
-                        appointment.status === 'Pending' && (
-                            <Button
-                                variant="outlined"
-                                color="error"
-                                onClick={handleCancel}
-                            >
-                                Cancel Appointment
-                            </Button>
-                        )}
-                </Box>
-
-                {userRole === 'doctor' && appointment.status === 'Approved' && (
-                    <Box sx={{ mt: 3 }}>
-                        <Typography variant="h6">Complete Visit</Typography>
-                        <TextField
-                            fullWidth
-                            multiline
-                            rows={3}
-                            label="Diagnosis"
-                            value={diagnosis}
-                            onChange={(e) => setDiagnosis(e.target.value)}
-                            sx={{ mt: 1, mb: 1 }}
-                        />
-                        <TextField
-                            fullWidth
-                            multiline
-                            rows={3}
-                            label="Prescription"
-                            value={prescription}
-                            onChange={(e) => setPrescription(e.target.value)}
-                            sx={{ mt: 1, mb: 1 }}
-                        />
-                        <Button
-                            variant="contained"
-                            color="success"
-                            onClick={handleComplete}
-                        >
-                            Save & Complete
-                        </Button>
-                    </Box>
-                )}
-            </Paper>
-        </Container>
-    );
-};
-
-export default AppointmentDetail;
 
 ==================== src/dashboards/AdminDashBoard.jsx ====================
 
 export { AdminDashBoard } from '../features/admin/AdminDashBoard.jsx';
+
 
 ==================== src/dashboards/DoctorDashBoard.jsx ====================
 
@@ -3223,7 +2752,6 @@ import { useState, useEffect } from 'react';
 import { appointmentAPI, doctorAPI } from '../services/api';
 import Swal from 'sweetalert2';
 
-// ─── Timezone-safe helper ────────────────────────────────────────────────────
 const toLocalDateStr = (date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -3234,22 +2762,14 @@ const toLocalDateStr = (date) => {
 export const DoctorDashBoard = () => {
     const [activeTab, setActiveTab] = useState('appointments');
     const [loading, setLoading] = useState(false);
-
     const [slots, setSlots] = useState([]);
     const [appointments, setAppointments] = useState([]);
-
-    // Selected date for Appointments tab
     const [selectedDate, setSelectedDate] = useState(() => toLocalDateStr(new Date()));
-
-    // Selected date for Schedule tab
     const [selectedScheduleDate, setSelectedScheduleDate] = useState(() => toLocalDateStr(new Date()));
-
     const [shiftForm, setShiftForm] = useState({ date: '', startTime: '', workHours: '', duration: '30' });
-
     const [openModal, setOpenModal] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
     const [medicalRecord, setMedicalRecord] = useState({ diagnosis: '', prescription: '', doctor_notes: '' });
-
     const [searchTerm, setSearchTerm] = useState('');
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [selectedHistoryRecord, setSelectedHistoryRecord] = useState(null);
@@ -3264,10 +2784,8 @@ export const DoctorDashBoard = () => {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    // ✅ Fix: use local date string instead of toISOString()
     const todayStr = toLocalDateStr(today);
 
-    // 8-day strips starting from today
     const calendarDays = Array.from({ length: 8 }, (_, i) => {
         const d = new Date(today);
         d.setDate(d.getDate() + i);
@@ -3278,7 +2796,6 @@ export const DoctorDashBoard = () => {
         setLoading(true);
         try {
             const appsRes = await appointmentAPI.getMyAppointments();
-            // ✅ Fix: deduplicate by id first, then filter by date
             const unique = Object.values(
                 (appsRes.data || []).reduce((acc, app) => {
                     acc[app.id] = app;
@@ -3304,7 +2821,6 @@ export const DoctorDashBoard = () => {
 
     useEffect(() => { loadDashboardData(); }, []);
 
-    // ─── Appointment handlers ────────────────────────────────────────────────
     const handleApproveAppointment = async (appId) => {
         try {
             await appointmentAPI.approveAppointment(appId);
@@ -3359,7 +2875,6 @@ export const DoctorDashBoard = () => {
                 prescription: medicalRecord.prescription,
                 doctor_notes: medicalRecord.doctor_notes,
             });
-            // ✅ Fix: close modal & reset first, then reload from API to get full data including diagnosis
             setOpenModal(false);
             setMedicalRecord({ diagnosis: '', prescription: '', doctor_notes: '' });
             Swal.fire({ icon: 'success', title: 'Session Archived', text: 'Medical records stored successfully.', confirmButtonColor: '#0f172a' });
@@ -3370,7 +2885,6 @@ export const DoctorDashBoard = () => {
         }
     };
 
-    // ─── Slot handlers ───────────────────────────────────────────────────────
     const handleDeleteSlot = async (slotId) => {
         try {
             await doctorAPI.deleteSlot(slotId);
@@ -3447,7 +2961,6 @@ export const DoctorDashBoard = () => {
         }
     };
 
-    // ─── Derived data ────────────────────────────────────────────────────────
     const appointmentsForDate = appointments.filter(a =>
         a.slot_details?.date === selectedDate && a.status !== 'Cancelled'
     );
@@ -3478,7 +2991,6 @@ export const DoctorDashBoard = () => {
         return isCompleted && matchesSearch;
     });
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
     const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     const statusBadge = (status) => ({
@@ -3493,11 +3005,9 @@ export const DoctorDashBoard = () => {
         return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     };
 
-    // ─── Day strip reusable renderer ─────────────────────────────────────────
     const DayStrip = ({ days, selected, onSelect, countFn, isDateStr = false }) => (
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
             {days.map((item) => {
-                // ✅ Fix: use toLocalDateStr instead of toISOString()
                 const ds = isDateStr ? item : toLocalDateStr(item);
                 const d = isDateStr ? new Date(ds + 'T00:00:00') : item;
                 const cnt = countFn(ds);
@@ -3534,7 +3044,6 @@ export const DoctorDashBoard = () => {
 
     return (
         <>
-            {/* ── Google Font: DM Sans ── */}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
                 .doctor-dashboard * { font-family: 'DM Sans', sans-serif; }
@@ -3544,7 +3053,6 @@ export const DoctorDashBoard = () => {
             <div className="doctor-dashboard min-h-screen bg-[#f8f9fb] py-10 px-6 text-[#1e293b] antialiased">
                 <div className="max-w-5xl mx-auto space-y-8">
 
-                    {/* ── Header ── */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-7">
                         <div>
                             <h1 className="text-2xl font-bold text-[#0f172a] tracking-tight">Clinical Operations</h1>
@@ -3558,7 +3066,6 @@ export const DoctorDashBoard = () => {
                         </button>
                     </div>
 
-                    {/* ── Tabs ── */}
                     <div className="flex border-b border-slate-200 gap-7">
                         {['appointments', 'schedule', 'history'].map(tab => (
                             <button
@@ -3575,9 +3082,6 @@ export const DoctorDashBoard = () => {
                         ))}
                     </div>
 
-                    {/* ══════════════════════════════════════════════════════════════
-                        TAB 1 — APPOINTMENTS
-                    ══════════════════════════════════════════════════════════════ */}
                     {activeTab === 'appointments' && (
                         <div className="space-y-6">
 
@@ -3661,9 +3165,6 @@ export const DoctorDashBoard = () => {
                         </div>
                     )}
 
-                    {/* ══════════════════════════════════════════════════════════════
-                        TAB 2 — SCHEDULE PLANNER
-                    ══════════════════════════════════════════════════════════════ */}
                     {activeTab === 'schedule' && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
@@ -3722,7 +3223,6 @@ export const DoctorDashBoard = () => {
                                 </form>
                             </div>
 
-                            {/* ── Slots Viewer ── */}
                             <div className="md:col-span-2 space-y-5">
 
                                 {scheduleDates.length === 0 ? (
@@ -3808,9 +3308,6 @@ export const DoctorDashBoard = () => {
                         </div>
                     )}
 
-                    {/* ══════════════════════════════════════════════════════════════
-                        TAB 3 — CASE ARCHIVE
-                    ══════════════════════════════════════════════════════════════ */}
                     {activeTab === 'history' && (
                         <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm space-y-6">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -3866,9 +3363,6 @@ export const DoctorDashBoard = () => {
                     )}
                 </div>
 
-                {/* ══════════════════════════════════════════════════════════════
-                    MODAL 1 — COMPLETE SESSION
-                ══════════════════════════════════════════════════════════════ */}
                 {openModal && (
                     <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                         <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-6 shadow-xl border border-slate-100">
@@ -3898,9 +3392,6 @@ export const DoctorDashBoard = () => {
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
-                    MODAL 2 — VIEW PATIENT RECORD
-                ══════════════════════════════════════════════════════════════ */}
                 {historyModalOpen && selectedHistoryRecord && (
                     <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                         <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100">
@@ -3963,14 +3454,27 @@ export const DoctorDashBoard = () => {
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { doctorAPI, appointmentAPI, specialtyAPI } from '../services/api';
+import axiosInstance from '../api/axios';
 import Swal from 'sweetalert2';
+import { ReviewModal } from '../components/ReviewModal';
+import { DoctorReviews } from '../components/DoctorReviews';
 
-// ─── Timezone-safe helper ─────────────────────────────────────────────────────
 const toLocalDateStr = (date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+};
+
+const getSpecialtyName = (doctorProfile) => {
+    return doctorProfile?.specialty_name || 'Specialist';
+};
+
+const getSpecialtyId = (doctorProfile) => {
+    const sp = doctorProfile?.specialty;
+    if (!sp) return null;
+    if (typeof sp === 'object') return Number(sp.id);
+    return Number(sp);
 };
 
 export const PatientDashBoard = () => {
@@ -3982,7 +3486,6 @@ export const PatientDashBoard = () => {
     const [myAppointments, setMyAppointments] = useState([]);
 
     const [selectedDayForDoc, setSelectedDayForDoc] = useState({});
-    // Track which doctor's slot dropdown is open
     const [openSlotDropdown, setOpenSlotDropdown] = useState(null);
     const dropdownRef = useRef(null);
 
@@ -3995,6 +3498,11 @@ export const PatientDashBoard = () => {
     const [selectedSpecialty, setSelectedSpecialty] = useState('');
     const [specialties, setSpecialties] = useState([]);
 
+    const [reviewModalOpen, setReviewModalOpen] = useState(false);
+    const [reviewTarget, setReviewTarget] = useState(null); // appointment being reviewed
+    // Set of appointment IDs that the patient has already reviewed
+    const [reviewedIds, setReviewedIds] = useState(new Set());
+
     const Toast = Swal.mixin({
         toast: true,
         position: 'top-end',
@@ -4006,16 +3514,33 @@ export const PatientDashBoard = () => {
     const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const todayStr = toLocalDateStr(new Date());
 
-    // Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+            if (
+                dropdownRef.current &&
+                !dropdownRef.current.contains(e.target)
+            ) {
                 setOpenSlotDropdown(null);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        return () =>
+            document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Fetch the patient's existing reviews so we can hide the "Rate" button
+    // for appointments already reviewed.
+    const loadMyReviews = async () => {
+        try {
+            const res = await axiosInstance.get('/reviews/my/');
+            const ids = new Set(
+                (res.data || []).map((r) => Number(r.appointment))
+            );
+            setReviewedIds(ids);
+        } catch {
+            // Silently ignore — the button just won't be hidden if this fails.
+        }
+    };
 
     const loadPatientData = async () => {
         if (!currentUser) return;
@@ -4034,36 +3559,49 @@ export const PatientDashBoard = () => {
             const initialDays = {};
             docRes.data.forEach((docItem) => {
                 const docSlots = slotRes.data.filter((s) => {
-                    const sDocId = s.doctor && typeof s.doctor === 'object'
-                        ? Number(s.doctor.id)
-                        : Number(s.doctor || s.doctor_id);
+                    const sDocId =
+                        s.doctor && typeof s.doctor === 'object'
+                            ? Number(s.doctor.id)
+                            : Number(s.doctor || s.doctor_id);
                     return sDocId === Number(docItem.id);
                 });
                 if (docSlots.length > 0) {
-                    const todaySlot = docSlots.find(s => s.date === todayStr);
-                    initialDays[docItem.id] = todaySlot ? todayStr : docSlots[0].date;
+                    const todaySlot = docSlots.find((s) => s.date === todayStr);
+                    initialDays[docItem.id] = todaySlot
+                        ? todayStr
+                        : docSlots[0].date;
                 }
             });
             setSelectedDayForDoc(initialDays);
 
-            // Deduplicate appointments
             const unique = Object.values(
-                (appRes.data || []).reduce((acc, app) => { acc[app.id] = app; return acc; }, {})
+                (appRes.data || []).reduce((acc, app) => {
+                    acc[app.id] = app;
+                    return acc;
+                }, {})
             );
             setMyAppointments(unique);
         } catch (err) {
             console.error('Error loading data:', err);
-            Toast.fire({ icon: 'error', title: 'Failed to fetch data from server.' });
+            Toast.fire({
+                icon: 'error',
+                title: 'Failed to fetch data from server.',
+            });
         }
     };
 
-    useEffect(() => { loadPatientData(); }, [currentUser]);
+    useEffect(() => {
+        loadPatientData();
+        loadMyReviews();
+    }, [currentUser]);
 
     const handleBookSlot = async (doctor, slot) => {
-        const doctorName = `${doctor.first_name} ${doctor.last_name}`.trim() || 'Doctor';
+        const doctorName =
+            `${doctor.first_name} ${doctor.last_name}`.trim() || 'Doctor';
         const amount = Number(doctor.doctor_profile?.consultation_fee) || 250;
         const dayLabel = slot.date;
-        const displayTime = slot.start_time || slot.time?.split(' - ')[0] || slot.time;
+        const displayTime =
+            slot.start_time || slot.time?.split(' - ')[0] || slot.time;
 
         const result = await Swal.fire({
             title: 'Pay & Book Appointment',
@@ -4089,12 +3627,22 @@ export const PatientDashBoard = () => {
             cancelButtonText: 'Cancel',
             focusConfirm: false,
             preConfirm: () => {
-                const cardName = document.getElementById('payment-card-name')?.value.trim();
-                const cardNumber = document.getElementById('payment-card-number')?.value.replace(/\s/g, '');
-                const expiry = document.getElementById('payment-card-expiry')?.value.trim();
-                const cvv = document.getElementById('payment-card-cvv')?.value.trim();
+                const cardName = document
+                    .getElementById('payment-card-name')
+                    ?.value.trim();
+                const cardNumber = document
+                    .getElementById('payment-card-number')
+                    ?.value.replace(/\s/g, '');
+                const expiry = document
+                    .getElementById('payment-card-expiry')
+                    ?.value.trim();
+                const cvv = document
+                    .getElementById('payment-card-cvv')
+                    ?.value.trim();
                 if (!cardName || !cardNumber || !expiry || !cvv) {
-                    Swal.showValidationMessage('Please complete all payment fields.');
+                    Swal.showValidationMessage(
+                        'Please complete all payment fields.'
+                    );
                     return false;
                 }
                 return { last4: cardNumber.slice(-4) };
@@ -4109,16 +3657,25 @@ export const PatientDashBoard = () => {
                     consultation_fee: amount,
                     payment_card_last4: result.value?.last4 || '',
                 });
-                Swal.fire('Booked!', 'Your appointment has been successfully booked.', 'success');
+                Swal.fire(
+                    'Booked!',
+                    'Your appointment has been successfully booked.',
+                    'success'
+                );
                 setOpenSlotDropdown(null);
                 loadPatientData();
             } catch (err) {
-                Swal.fire('Booking Failed', err.response?.data?.error || err.message || 'This slot might already be taken.', 'error');
+                Swal.fire(
+                    'Booking Failed',
+                    err.response?.data?.error ||
+                        err.message ||
+                        'This slot might already be taken.',
+                    'error'
+                );
             }
         }
     };
 
-    // ✅ Fix 1: use cancelAppointment endpoint (POST) not updateAppointment (PATCH)
     const handleCancelAppointment = async (app) => {
         const result = await Swal.fire({
             title: 'Cancel Appointment?',
@@ -4129,47 +3686,77 @@ export const PatientDashBoard = () => {
             cancelButtonColor: '#94a3b8',
             confirmButtonText: 'Yes, cancel it',
             cancelButtonText: 'Go Back',
-            customClass: { confirmButton: 'cursor-pointer rounded-xl', cancelButton: 'cursor-pointer rounded-xl' },
         });
         if (!result.isConfirmed) return;
         try {
-            await appointmentAPI.cancelAppointment(app.id, 'Cancelled by patient.');
-            Toast.fire({ icon: 'success', title: 'Appointment cancelled successfully.' });
+            await appointmentAPI.cancelAppointment(
+                app.id,
+                'Cancelled by patient.'
+            );
+            Toast.fire({
+                icon: 'success',
+                title: 'Appointment cancelled successfully.',
+            });
             loadPatientData();
         } catch (err) {
-            console.error('Error cancelling appointment:', err);
-            Toast.fire({ icon: 'error', title: err.response?.data?.error || 'Failed to cancel the appointment.' });
+            Toast.fire({
+                icon: 'error',
+                title:
+                    err.response?.data?.error ||
+                    'Failed to cancel the appointment.',
+            });
         }
     };
 
-    // ✅ Fix 2: compare specialty as number (API returns number IDs)
+    const handleOpenReview = (app) => {
+        setReviewTarget(app);
+        setReviewModalOpen(true);
+    };
+
+    const handleReviewPosted = (review) => {
+        setReviewedIds(
+            (prev) => new Set([...prev, Number(review.appointment)])
+        );
+    };
+
     const filteredDoctors = doctors.filter((docItem) => {
-        const fullName = `${docItem.first_name} ${docItem.last_name}`.toLowerCase();
+        const fullName =
+            `${docItem.first_name} ${docItem.last_name}`.toLowerCase();
         const matchesSearch =
             fullName.includes(searchQuery.toLowerCase()) ||
-            (docItem.email || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesSpecialty = !selectedSpecialty ||
-            Number(docItem.doctor_profile?.specialty) === Number(selectedSpecialty);
+            (docItem.email || '')
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase());
+        const matchesSpecialty =
+            !selectedSpecialty ||
+            getSpecialtyId(docItem.doctor_profile) ===
+                Number(selectedSpecialty);
         return matchesSearch && matchesSpecialty;
     });
 
-    // ─── Status helpers ───────────────────────────────────────────────────────
     const statusStyles = {
         Completed: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
         Confirmed: 'bg-sky-50 text-sky-700 border border-sky-100',
-        Pending:   'bg-amber-50 text-amber-700 border border-amber-100',
+        Pending: 'bg-amber-50 text-amber-700 border border-amber-100',
         Cancelled: 'bg-red-50 text-red-600 border border-red-100',
+        Rejected: 'bg-red-50 text-red-600 border border-red-100',
     };
 
     const fmtDate = (ds) => {
         if (!ds) return 'N/A';
         const d = new Date(ds + 'T00:00:00');
-        return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        return d.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+        });
     };
 
-    // ─── Doctor card day strip ────────────────────────────────────────────────
     const DocDayStrip = ({ docItem, uniqueDates, currentSelectedDate }) => (
-        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        <div
+            className="flex gap-2 overflow-x-auto pb-1"
+            style={{ scrollbarWidth: 'none' }}
+        >
             {uniqueDates.map((dateVal) => {
                 const d = new Date(dateVal + 'T00:00:00');
                 const isActive = currentSelectedDate === dateVal;
@@ -4177,20 +3764,32 @@ export const PatientDashBoard = () => {
                 return (
                     <button
                         key={dateVal}
-                        onClick={() => setSelectedDayForDoc(prev => ({ ...prev, [docItem.id]: dateVal }))}
+                        onClick={() =>
+                            setSelectedDayForDoc((prev) => ({
+                                ...prev,
+                                [docItem.id]: dateVal,
+                            }))
+                        }
                         className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-xl border transition-all cursor-pointer min-w-[52px]
-                            ${isActive
-                                ? 'bg-[#0f172a] border-[#0f172a]'
-                                : 'bg-[#f8f9fb] border-slate-200 hover:border-slate-300 hover:bg-slate-100'
+                            ${
+                                isActive
+                                    ? 'bg-[#0f172a] border-[#0f172a]'
+                                    : 'bg-[#f8f9fb] border-slate-200 hover:border-slate-300 hover:bg-slate-100'
                             }`}
                     >
-                        <span className={`text-[10px] font-semibold tracking-wide ${isActive ? 'text-slate-400' : 'text-slate-400'}`}>
+                        <span
+                            className={`text-[10px] font-semibold tracking-wide ${isActive ? 'text-slate-400' : 'text-slate-400'}`}
+                        >
                             {isToday ? 'Today' : DAY_ABBR[d.getDay()]}
                         </span>
-                        <span className={`text-base font-bold leading-tight ${isActive ? 'text-white' : 'text-[#0f172a]'}`}>
+                        <span
+                            className={`text-base font-bold leading-tight ${isActive ? 'text-white' : 'text-[#0f172a]'}`}
+                        >
                             {d.getDate()}
                         </span>
-                        <span className={`text-[10px] ${isActive ? 'text-slate-400' : 'text-slate-400'}`}>
+                        <span
+                            className={`text-[10px] ${isActive ? 'text-slate-400' : 'text-slate-400'}`}
+                        >
                             {d.toLocaleDateString('en-US', { month: 'short' })}
                         </span>
                     </button>
@@ -4199,7 +3798,6 @@ export const PatientDashBoard = () => {
         </div>
     );
 
-    // ✅ Fix 3: Slot Dropdown instead of grid of buttons
     const SlotDropdown = ({ docItem, slotsForSelectedDay }) => {
         const isOpen = openSlotDropdown === docItem.id;
         const available = slotsForSelectedDay.length;
@@ -4207,45 +3805,73 @@ export const PatientDashBoard = () => {
         return (
             <div className="relative" ref={isOpen ? dropdownRef : null}>
                 <button
-                    onClick={() => setOpenSlotDropdown(isOpen ? null : docItem.id)}
+                    onClick={() =>
+                        setOpenSlotDropdown(isOpen ? null : docItem.id)
+                    }
                     disabled={available === 0}
                     className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all cursor-pointer
-                        ${available === 0
-                            ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
-                            : isOpen
-                                ? 'bg-[#0f172a] border-[#0f172a] text-white'
-                                : 'bg-white border-slate-200 text-[#0f172a] hover:border-slate-300 hover:bg-slate-50'
+                        ${
+                            available === 0
+                                ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                                : isOpen
+                                  ? 'bg-[#0f172a] border-[#0f172a] text-white'
+                                  : 'bg-white border-slate-200 text-[#0f172a] hover:border-slate-300 hover:bg-slate-50'
                         }`}
                 >
                     <span className="flex items-center gap-2">
-                        <span className={`text-base ${isOpen ? '' : ''}`}>🕐</span>
-                        {available === 0 ? 'No slots available' : `${available} slot${available > 1 ? 's' : ''} available`}
+                        <span>🕐</span>
+                        {available === 0
+                            ? 'No slots available'
+                            : `${available} slot${available > 1 ? 's' : ''} available`}
                     </span>
                     {available > 0 && (
                         <svg
                             className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
                         >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M19 9l-7 7-7-7"
+                            />
                         </svg>
                     )}
                 </button>
 
                 {isOpen && available > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden">
-                        <div className="p-2 max-h-52 overflow-y-auto space-y-1" style={{ scrollbarWidth: 'thin' }}>
+                        <div
+                            className="p-2 max-h-52 overflow-y-auto space-y-1"
+                            style={{ scrollbarWidth: 'thin' }}
+                        >
                             {slotsForSelectedDay.map((slot) => {
-                                const displayTime = slot.start_time || slot.time?.split(' - ')[0] || slot.time;
-                                const endTime = slot.end_time || slot.time?.split(' - ')[1] || '';
+                                const displayTime =
+                                    slot.start_time ||
+                                    slot.time?.split(' - ')[0] ||
+                                    slot.time;
+                                const endTime =
+                                    slot.end_time ||
+                                    slot.time?.split(' - ')[1] ||
+                                    '';
                                 return (
                                     <button
                                         key={slot.id}
-                                        onClick={() => handleBookSlot(docItem, slot)}
+                                        onClick={() =>
+                                            handleBookSlot(docItem, slot)
+                                        }
                                         className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-[#0f172a] hover:text-white group transition-all cursor-pointer text-left"
                                     >
                                         <span className="text-sm font-semibold text-[#0f172a] group-hover:text-white">
                                             {displayTime}
-                                            {endTime && <span className="font-normal text-slate-400 group-hover:text-slate-300"> – {endTime}</span>}
+                                            {endTime && (
+                                                <span className="font-normal text-slate-400 group-hover:text-slate-300">
+                                                    {' '}
+                                                    – {endTime}
+                                                </span>
+                                            )}
                                         </span>
                                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-white/20 group-hover:text-white border border-emerald-100 group-hover:border-transparent transition-all">
                                             Book
@@ -4263,12 +3889,15 @@ export const PatientDashBoard = () => {
     return (
         <div className="min-h-screen bg-[#f8f9fb] py-10 px-4 sm:px-6 lg:px-8 font-sans text-[#1e293b] antialiased">
             <div className="max-w-6xl mx-auto space-y-8">
-
-                {/* ── Header ── */}
+                {/* Header */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-7 border-b border-slate-200">
                     <div>
-                        <h1 className="text-2xl font-bold text-[#0f172a] tracking-tight">Patient Center</h1>
-                        <p className="text-slate-500 text-sm mt-1 font-medium">Book appointments and manage your health records.</p>
+                        <h1 className="text-2xl font-bold text-[#0f172a] tracking-tight">
+                            Patient Center
+                        </h1>
+                        <p className="text-slate-500 text-sm mt-1 font-medium">
+                            Book appointments and manage your health records.
+                        </p>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-500 bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm font-medium">
                         <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
@@ -4276,11 +3905,11 @@ export const PatientDashBoard = () => {
                     </div>
                 </div>
 
-                {/* ── Tabs ── */}
+                {/* Tabs */}
                 <div className="flex border-b border-slate-200 gap-7">
                     {[
                         { label: 'Book Appointment', icon: '🏥' },
-                        { label: 'My Bookings',      icon: '📅' },
+                        { label: 'My Bookings', icon: '📅' },
                     ].map((tab, i) => (
                         <button
                             key={i}
@@ -4296,34 +3925,38 @@ export const PatientDashBoard = () => {
                     ))}
                 </div>
 
-                {/* ══════════════════════════════════════════════════════════════
-                    TAB 0 — BOOK AN APPOINTMENT
-                ══════════════════════════════════════════════════════════════ */}
+                {/* ── Tab 0: Book Appointment ── */}
                 {activeTab === 0 && (
                     <div className="space-y-6">
-
                         {/* Search & Filter */}
                         <div className="flex flex-col md:flex-row gap-3">
                             <div className="flex-1 relative">
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 text-sm">🔍</span>
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 text-sm">
+                                    🔍
+                                </span>
                                 <input
                                     type="text"
                                     className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-slate-300 transition-all placeholder:text-slate-400 font-medium"
                                     placeholder="Search doctor by name..."
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onChange={(e) =>
+                                        setSearchQuery(e.target.value)
+                                    }
                                 />
                             </div>
-                            {/* ✅ Fix 2: specialty filter uses numeric comparison */}
                             <div className="w-full md:w-60">
                                 <select
                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-slate-300 transition-all text-slate-600 cursor-pointer font-medium"
                                     value={selectedSpecialty}
-                                    onChange={(e) => setSelectedSpecialty(e.target.value)}
+                                    onChange={(e) =>
+                                        setSelectedSpecialty(e.target.value)
+                                    }
                                 >
                                     <option value="">All Specialties</option>
                                     {specialties.map((spec) => (
-                                        <option key={spec.id} value={spec.id}>{spec.name}</option>
+                                        <option key={spec.id} value={spec.id}>
+                                            {spec.name}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
@@ -4332,85 +3965,157 @@ export const PatientDashBoard = () => {
                         {/* Doctors Grid */}
                         {filteredDoctors.length === 0 ? (
                             <div className="bg-white border border-slate-200/60 rounded-2xl py-20 text-center shadow-sm">
-                                <p className="text-slate-500 text-sm font-semibold">No doctors found matching your search.</p>
+                                <p className="text-slate-500 text-sm font-semibold">
+                                    No doctors found matching your search.
+                                </p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                                 {filteredDoctors.map((docItem) => {
                                     const doctorSlots = allSlots.filter((s) => {
-                                        const sDocId = s.doctor && typeof s.doctor === 'object'
-                                            ? Number(s.doctor.id)
-                                            : Number(s.doctor || s.doctor_id);
+                                        const sDocId =
+                                            s.doctor &&
+                                            typeof s.doctor === 'object'
+                                                ? Number(s.doctor.id)
+                                                : Number(
+                                                      s.doctor || s.doctor_id
+                                                  );
                                         return sDocId === Number(docItem.id);
                                     });
 
-                                    const uniqueDates = [...new Set(doctorSlots.map((s) => s.date))].sort();
-                                    const currentSelectedDate = selectedDayForDoc[docItem.id] || uniqueDates[0];
+                                    const uniqueDates = [
+                                        ...new Set(
+                                            doctorSlots.map((s) => s.date)
+                                        ),
+                                    ].sort();
+                                    const currentSelectedDate =
+                                        selectedDayForDoc[docItem.id] ||
+                                        uniqueDates[0];
                                     const slotsForSelectedDay = doctorSlots
-                                        .filter((s) => s.date === currentSelectedDate)
-                                        .sort((a, b) => (a.start_time || a.time || '').localeCompare(b.start_time || b.time || ''));
+                                        .filter(
+                                            (s) =>
+                                                s.date === currentSelectedDate
+                                        )
+                                        .sort((a, b) =>
+                                            (
+                                                a.start_time ||
+                                                a.time ||
+                                                ''
+                                            ).localeCompare(
+                                                b.start_time || b.time || ''
+                                            )
+                                        );
 
-                                    // ✅ Fix 4: specialty name lookup
-                                    const specialtyName = specialties.find(
-                                        s => Number(s.id) === Number(docItem.doctor_profile?.specialty)
-                                    )?.name || 'Specialist';
-                                    const fee = Number(docItem.doctor_profile?.consultation_fee) || 250;
-                                    const initials = (docItem.first_name?.charAt(0) || '') + (docItem.last_name?.charAt(0) || '');
+                                    const specialtyName = getSpecialtyName(
+                                        docItem.doctor_profile
+                                    );
+                                    const fee =
+                                        Number(
+                                            docItem.doctor_profile
+                                                ?.consultation_fee
+                                        ) || 250;
+                                    const initials =
+                                        (docItem.first_name?.charAt(0) || '') +
+                                        (docItem.last_name?.charAt(0) || '');
 
                                     return (
                                         <div
                                             key={docItem.id}
                                             className="bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col overflow-visible"
                                         >
-                                            {/* ── Doctor header ── */}
+                                            {/* Doctor header */}
                                             <div className="px-5 pt-5 pb-4 border-b border-slate-100">
                                                 <div className="flex items-start gap-4">
-                                                    <div className="w-13 h-13 rounded-xl bg-[#0f172a] flex items-center justify-center text-white text-base font-bold shrink-0 select-none" style={{ width: 52, height: 52 }}>
+                                                    <div
+                                                        className="w-13 h-13 rounded-xl bg-[#0f172a] flex items-center justify-center text-white text-base font-bold shrink-0 select-none"
+                                                        style={{
+                                                            width: 52,
+                                                            height: 52,
+                                                        }}
+                                                    >
                                                         {initials.toUpperCase()}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div>
                                                                 <h3 className="text-sm font-bold text-[#0f172a] leading-tight">
-                                                                    Dr. {docItem.first_name} {docItem.last_name}
+                                                                    Dr.{' '}
+                                                                    {
+                                                                        docItem.first_name
+                                                                    }{' '}
+                                                                    {
+                                                                        docItem.last_name
+                                                                    }
                                                                 </h3>
                                                                 <span className="inline-block text-[11px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-lg mt-1">
-                                                                    {specialtyName}
+                                                                    {
+                                                                        specialtyName
+                                                                    }
                                                                 </span>
                                                             </div>
                                                             <div className="text-right shrink-0">
-                                                                <p className="text-base font-bold text-[#0f172a]">{fee} <span className="text-xs font-normal text-slate-400">EGP</span></p>
-                                                                <p className="text-[10px] text-slate-500 font-medium mt-0.5">per session</p>
+                                                                <p className="text-base font-bold text-[#0f172a]">
+                                                                    {fee}{' '}
+                                                                    <span className="text-xs font-normal text-slate-400">
+                                                                        EGP
+                                                                    </span>
+                                                                </p>
+                                                                <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                                                    per session
+                                                                </p>
                                                             </div>
                                                         </div>
                                                         <button
-                                                            onClick={() => { setSelectedDoctorProfile(docItem); setDoctorModalOpen(true); }}
+                                                            onClick={() => {
+                                                                setSelectedDoctorProfile(
+                                                                    docItem
+                                                                );
+                                                                setDoctorModalOpen(
+                                                                    true
+                                                                );
+                                                            }}
                                                             className="text-[11px] text-slate-400 hover:text-[#0f172a] font-semibold mt-2 inline-flex items-center gap-1 transition-all cursor-pointer"
                                                         >
-                                                            <span>ℹ️</span> View profile & bio
+                                                            <span>ℹ️</span> View
+                                                            profile & reviews
                                                         </button>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            {/* ── Day strip ── */}
+                                            {/* Day strip */}
                                             <div className="px-5 pt-4 pb-3">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Select a date</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                                                    Select a date
+                                                </p>
                                                 {uniqueDates.length === 0 ? (
-                                                    <p className="text-xs text-slate-400 italic">No available dates.</p>
+                                                    <p className="text-xs text-slate-400 italic">
+                                                        No available dates.
+                                                    </p>
                                                 ) : (
                                                     <DocDayStrip
                                                         docItem={docItem}
-                                                        uniqueDates={uniqueDates}
-                                                        currentSelectedDate={currentSelectedDate}
+                                                        uniqueDates={
+                                                            uniqueDates
+                                                        }
+                                                        currentSelectedDate={
+                                                            currentSelectedDate
+                                                        }
                                                     />
                                                 )}
                                             </div>
 
-                                            {/* ✅ Fix 3: Slot Dropdown instead of slot grid */}
+                                            {/* Slot Dropdown */}
                                             <div className="px-5 pb-5 pt-1 relative">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Available times</p>
-                                                <SlotDropdown docItem={docItem} slotsForSelectedDay={slotsForSelectedDay} />
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                                                    Available times
+                                                </p>
+                                                <SlotDropdown
+                                                    docItem={docItem}
+                                                    slotsForSelectedDay={
+                                                        slotsForSelectedDay
+                                                    }
+                                                />
                                             </div>
                                         </div>
                                     );
@@ -4420,13 +4125,13 @@ export const PatientDashBoard = () => {
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
-                    TAB 1 — MY BOOKINGS & RECORDS
-                ══════════════════════════════════════════════════════════════ */}
+                {/* ── Tab 1: My Bookings ── */}
                 {activeTab === 1 && (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your booking history</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                Your booking history
+                            </p>
                             <span className="text-xs text-slate-500 font-semibold bg-white border border-slate-200 px-3 py-1 rounded-lg">
                                 {myAppointments.length} total
                             </span>
@@ -4434,14 +4139,25 @@ export const PatientDashBoard = () => {
 
                         {myAppointments.length === 0 ? (
                             <div className="bg-white border border-slate-200/60 rounded-2xl py-20 text-center shadow-sm">
-                                <p className="text-slate-500 text-sm font-semibold">You haven't booked any appointments yet.</p>
+                                <p className="text-slate-500 text-sm font-semibold">
+                                    You haven't booked any appointments yet.
+                                </p>
                             </div>
                         ) : (
                             <div className="flex flex-col gap-3">
                                 {myAppointments.map((app) => {
                                     const slotDate = app.slot_details?.date;
-                                    const slotTime = app.slot_details?.start_time || app.slot_details?.time;
-                                    const canCancel = app.status === 'Pending' || app.status === 'Confirmed';
+                                    const slotTime =
+                                        app.slot_details?.start_time ||
+                                        app.slot_details?.time;
+                                    const canCancel =
+                                        app.status === 'Pending' ||
+                                        app.status === 'Confirmed';
+                                    const isCompleted =
+                                        app.status === 'Completed';
+                                    const alreadyReviewed = reviewedIds.has(
+                                        Number(app.id)
+                                    );
 
                                     return (
                                         <div
@@ -4451,13 +4167,31 @@ export const PatientDashBoard = () => {
                                             {/* Date block */}
                                             <div className="min-w-[80px] text-center sm:text-left">
                                                 <p className="text-base font-bold text-[#0f172a]">
-                                                    {slotDate ? new Date(slotDate + 'T00:00:00').getDate() : '—'}
+                                                    {slotDate
+                                                        ? new Date(
+                                                              slotDate +
+                                                                  'T00:00:00'
+                                                          ).getDate()
+                                                        : '—'}
                                                 </p>
                                                 <p className="text-xs text-slate-500 font-medium leading-tight">
-                                                    {slotDate ? new Date(slotDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}
+                                                    {slotDate
+                                                        ? new Date(
+                                                              slotDate +
+                                                                  'T00:00:00'
+                                                          ).toLocaleDateString(
+                                                              'en-US',
+                                                              {
+                                                                  month: 'short',
+                                                                  year: 'numeric',
+                                                              }
+                                                          )
+                                                        : ''}
                                                 </p>
                                                 {slotTime && (
-                                                    <p className="text-xs font-bold text-[#0f172a] mt-1">{slotTime}</p>
+                                                    <p className="text-xs font-bold text-[#0f172a] mt-1">
+                                                        {slotTime}
+                                                    </p>
                                                 )}
                                             </div>
 
@@ -4465,38 +4199,75 @@ export const PatientDashBoard = () => {
 
                                             {/* Doctor info */}
                                             <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-sm text-[#0f172a]">Dr. {app.doctor_name}</p>
+                                                <p className="font-bold text-sm text-[#0f172a]">
+                                                    Dr. {app.doctor_name}
+                                                </p>
                                                 <p className="text-xs text-slate-500 font-medium mt-0.5">
                                                     {fmtDate(slotDate)}
-                                                    {slotTime ? ` · ${slotTime}` : ''}
+                                                    {slotTime
+                                                        ? ` · ${slotTime}`
+                                                        : ''}
                                                 </p>
                                             </div>
 
-                                            {/* Status */}
-                                            <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusStyles[app.status] || statusStyles.Pending}`}>
+                                            <span
+                                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusStyles[app.status] || statusStyles.Pending}`}
+                                            >
                                                 {app.status}
                                             </span>
 
-                                            {/* Payment */}
                                             <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-50 text-slate-600 border border-slate-200 whitespace-nowrap">
-                                                {app.payment_status} · {app.consultation_fee} EGP
+                                                {app.payment_status} ·{' '}
+                                                {app.consultation_fee} EGP
                                             </span>
 
-                                            {/* Actions */}
                                             <div className="flex items-center gap-2 flex-shrink-0">
                                                 {app.prescription ? (
                                                     <button
-                                                        onClick={() => { setSelectedRecord(app); setOpenModal(true); }}
+                                                        onClick={() => {
+                                                            setSelectedRecord(
+                                                                app
+                                                            );
+                                                            setOpenModal(true);
+                                                        }}
                                                         className="px-3 py-1.5 bg-[#0f172a] text-white font-semibold text-xs rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
                                                     >
                                                         View Rx
                                                     </button>
                                                 ) : (
-                                                    <span className="text-slate-300 text-xs italic">No prescription</span>
+                                                    <span className="text-slate-300 text-xs italic">
+                                                        No prescription
+                                                    </span>
                                                 )}
+
+                                                {/* ── Rate button — only on Completed, not yet reviewed ── */}
+                                                {isCompleted &&
+                                                    !alreadyReviewed && (
+                                                        <button
+                                                            onClick={() =>
+                                                                handleOpenReview(
+                                                                    app
+                                                                )
+                                                            }
+                                                            className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 font-semibold text-xs rounded-xl hover:bg-amber-100 transition-all cursor-pointer flex items-center gap-1"
+                                                        >
+                                                            ⭐ Rate
+                                                        </button>
+                                                    )}
+                                                {isCompleted &&
+                                                    alreadyReviewed && (
+                                                        <span className="px-3 py-1.5 bg-slate-50 text-slate-400 border border-slate-200 font-semibold text-xs rounded-xl flex items-center gap-1 select-none">
+                                                            ✓ Reviewed
+                                                        </span>
+                                                    )}
+
                                                 {canCancel && (
                                                     <button
-                                                        onClick={() => handleCancelAppointment(app)}
+                                                        onClick={() =>
+                                                            handleCancelAppointment(
+                                                                app
+                                                            )
+                                                        }
                                                         className="px-3 py-1.5 bg-white text-red-500 border border-red-100 font-semibold text-xs rounded-xl hover:bg-red-50 transition-all cursor-pointer"
                                                     >
                                                         Cancel
@@ -4512,33 +4283,47 @@ export const PatientDashBoard = () => {
                 )}
             </div>
 
-            {/* ══════════════════════════════════════════════════════════════
-                MODAL 1 — MEDICAL PRESCRIPTION
-            ══════════════════════════════════════════════════════════════ */}
+            {/* ── Prescription Modal ── */}
             {openModal && selectedRecord && (
                 <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100">
-                        <h3 className="text-base font-bold text-[#0f172a] border-b border-slate-100 pb-3">Medical Prescription</h3>
+                        <h3 className="text-base font-bold text-[#0f172a] border-b border-slate-100 pb-3">
+                            Medical Prescription
+                        </h3>
                         <div className="space-y-3 text-sm">
                             <div className="grid grid-cols-2 gap-3 bg-[#fafafa] p-3 rounded-xl border border-slate-100">
                                 <div>
-                                    <span className="text-[11px] text-slate-500 block font-bold uppercase tracking-wide mb-1">Doctor</span>
-                                    <span className="font-semibold text-slate-800">Dr. {selectedRecord.doctor_name}</span>
+                                    <span className="text-[11px] text-slate-500 block font-bold uppercase tracking-wide mb-1">
+                                        Doctor
+                                    </span>
+                                    <span className="font-semibold text-slate-800">
+                                        Dr. {selectedRecord.doctor_name}
+                                    </span>
                                 </div>
                                 <div>
-                                    <span className="text-[11px] text-slate-500 block font-bold uppercase tracking-wide mb-1">Date</span>
-                                    <span className="font-semibold text-slate-800">{fmtDate(selectedRecord.slot_details?.date)}</span>
+                                    <span className="text-[11px] text-slate-500 block font-bold uppercase tracking-wide mb-1">
+                                        Date
+                                    </span>
+                                    <span className="font-semibold text-slate-800">
+                                        {fmtDate(
+                                            selectedRecord.slot_details?.date
+                                        )}
+                                    </span>
                                 </div>
                             </div>
                             <div>
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">Prescription</span>
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">
+                                    Prescription
+                                </span>
                                 <div className="p-4 bg-emerald-50/40 border border-emerald-100/60 rounded-xl text-emerald-900 font-mono text-xs whitespace-pre-line leading-relaxed">
                                     {selectedRecord.prescription}
                                 </div>
                             </div>
                             {selectedRecord.diagnosis && (
                                 <div>
-                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">Diagnosis</span>
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">
+                                        Diagnosis
+                                    </span>
                                     <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
                                         {selectedRecord.diagnosis}
                                     </p>
@@ -4557,57 +4342,90 @@ export const PatientDashBoard = () => {
                 </div>
             )}
 
-            {/* ══════════════════════════════════════════════════════════════
-                MODAL 2 — DOCTOR PROFILE
-            ══════════════════════════════════════════════════════════════ */}
+            {/* ── Doctor Profile Modal (with reviews) ── */}
             {doctorModalOpen && selectedDoctorProfile && (
                 <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100">
-                        {/* ✅ Fix 5: Doctor profile with all available fields */}
+                    <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
                             <div className="w-12 h-12 rounded-xl bg-[#0f172a] flex items-center justify-center text-white text-sm font-bold select-none">
-                                {(selectedDoctorProfile.first_name?.charAt(0) || '') + (selectedDoctorProfile.last_name?.charAt(0) || '')}
+                                {(selectedDoctorProfile.first_name?.charAt(0) ||
+                                    '') +
+                                    (selectedDoctorProfile.last_name?.charAt(
+                                        0
+                                    ) || '')}
                             </div>
                             <div>
                                 <h3 className="text-base font-bold text-[#0f172a]">
-                                    Dr. {selectedDoctorProfile.first_name} {selectedDoctorProfile.last_name}
+                                    Dr. {selectedDoctorProfile.first_name}{' '}
+                                    {selectedDoctorProfile.last_name}
                                 </h3>
                                 <span className="text-xs text-slate-500 font-semibold">
-                                    {specialties.find(s => Number(s.id) === Number(selectedDoctorProfile.doctor_profile?.specialty))?.name || 'Specialist'}
+                                    {getSpecialtyName(
+                                        selectedDoctorProfile.doctor_profile
+                                    )}
                                 </span>
                             </div>
                         </div>
 
                         <div className="space-y-4 text-sm">
-                            {/* Info grid */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="bg-[#fafafa] p-3 rounded-xl border border-slate-100 text-center">
-                                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide mb-1">Consultation Fee</p>
-                                    <p className="text-lg font-bold text-[#0f172a]">{Number(selectedDoctorProfile.doctor_profile?.consultation_fee) || 250}</p>
-                                    <p className="text-[11px] text-slate-500 font-medium">EGP / session</p>
+                                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide mb-1">
+                                        Consultation Fee
+                                    </p>
+                                    <p className="text-lg font-bold text-[#0f172a]">
+                                        {Number(
+                                            selectedDoctorProfile.doctor_profile
+                                                ?.consultation_fee
+                                        ) || 250}
+                                    </p>
+                                    <p className="text-[11px] text-slate-500 font-medium">
+                                        EGP / session
+                                    </p>
                                 </div>
                                 <div className="bg-[#fafafa] p-3 rounded-xl border border-slate-100 text-center">
-                                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide mb-1">Contact</p>
-                                    <p className="text-xs font-semibold text-[#0f172a] break-all">{selectedDoctorProfile.phone || selectedDoctorProfile.email || '—'}</p>
+                                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide mb-1">
+                                        Contact
+                                    </p>
+                                    <p className="text-xs font-semibold text-[#0f172a] break-all">
+                                        {selectedDoctorProfile.phone ||
+                                            selectedDoctorProfile.email ||
+                                            '—'}
+                                    </p>
                                 </div>
                             </div>
 
-                            {/* Clinic address */}
-                            {selectedDoctorProfile.doctor_profile?.clinic_address && (
+                            {selectedDoctorProfile.doctor_profile
+                                ?.clinic_address && (
                                 <div>
-                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">📍 Clinic Address</span>
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
+                                        📍 Clinic Address
+                                    </span>
                                     <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
-                                        {selectedDoctorProfile.doctor_profile.clinic_address}
+                                        {
+                                            selectedDoctorProfile.doctor_profile
+                                                .clinic_address
+                                        }
                                     </p>
                                 </div>
                             )}
 
-                            {/* Bio */}
                             <div>
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">📋 Biography</span>
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
+                                    📋 Biography
+                                </span>
                                 <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
-                                    {selectedDoctorProfile.doctor_profile?.bio || 'No biography provided by the doctor.'}
+                                    {selectedDoctorProfile.doctor_profile
+                                        ?.bio ||
+                                        'No biography provided by the doctor.'}
                                 </p>
+                            </div>
+
+                            {/* ── Reviews section ── */}
+                            <div className="border-t border-slate-100 pt-4">
+                                <DoctorReviews
+                                    doctorId={selectedDoctorProfile.id}
+                                />
                             </div>
                         </div>
 
@@ -4622,9 +4440,21 @@ export const PatientDashBoard = () => {
                     </div>
                 </div>
             )}
+
+            {/* ── Review Modal ── */}
+            <ReviewModal
+                isOpen={reviewModalOpen}
+                onClose={() => {
+                    setReviewModalOpen(false);
+                    setReviewTarget(null);
+                }}
+                appointment={reviewTarget}
+                onReviewPosted={handleReviewPosted}
+            />
         </div>
     );
 };
+
 
 ==================== src/features/admin/AdminDashBoard.jsx ====================
 
@@ -4985,166 +4815,3 @@ export const AdminDashBoard = () => {
     </Container>
   );
 };
-
-==================== src/components/NavBar.jsx ====================
-
-import { useAuth } from '../context/AuthContext';
-import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useLanguage } from '../context/LanguageContext';
-import { useNotifications } from '../context/NotificationsContext';
-
-export const Navbar = () => {
-    const { currentUser, userRole, userName, logout } = useAuth();
-    const { t, toggleLanguage, language } = useLanguage();
-    const navigate = useNavigate();
-    const { notifications, markAsRead } = useNotifications();
-    const [dropdownOpen, setDropdownOpen] = useState(false);
-    const dropdownRef = useRef(null);
-
-    const handleLogout = async () => {
-        try {
-            await logout();
-            navigate('/login');
-        } catch (err) {
-            console.error('Logout failed: ', err);
-        }
-    };
-
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-                setDropdownOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    if (!currentUser) return null;
-
-    const unreadCount = notifications.filter((n) => !n.read).length;
-
-    const handleNotificationSelect = async (n) => {
-        if (!n.read) await markAsRead(n.id);
-        setDropdownOpen(false);
-    };
-
-    return (
-        <nav className="bg-[#00796b] text-white shadow-md select-none relative z-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                    
-                    {/* Left Section: Brand & Panel Tag */}
-                    <div className="flex items-center gap-3">
-                        <span
-                            onClick={() => navigate(currentUser ? '/home' : '/')}
-                            className="text-lg font-black tracking-wider cursor-pointer flex items-center gap-1 select-none"
-                        >
-                            {t('nav.brand')} 🩺
-                        </span>
-                        <span className="bg-white/20 text-[10px] md:text-xs px-2 py-0.5 rounded-md uppercase font-extrabold tracking-wide">
-                            {t(`roles.${userRole}`)} {t('nav.panel')}
-                        </span>
-                    </div>
-
-                    {/* Right Section: User Info & Actions */}
-                    <div className="flex items-center gap-2 md:gap-5">
-                        
-                        {/* Welcome Message (Displays Username/Email from Context) */}
-                        <span className="text-sm font-medium hidden sm:inline-block">
-                            {t('nav.hello')},{' '}
-                            <strong className="font-black text-teal-100">
-                                {userName || t('common.unknown')}
-                            </strong>
-                        </span>
-
-                        {/* Language Switcher */}
-                        <button
-                            onClick={toggleLanguage}
-                            className="px-3 py-1.5 rounded-lg text-sm font-bold bg-transparent hover:bg-white/10 transition-all cursor-pointer"
-                        >
-                            {language === 'en' ? t('nav.changeLanguage') : t('nav.changeLanguage')}
-                        </button>
-
-                        {/* Notifications Icon & Badge Dropdown Container */}
-                        <div className="relative" ref={dropdownRef}>
-                            <button
-                                onClick={() => setDropdownOpen(!dropdownOpen)}
-                                className="p-2 rounded-full hover:bg-white/10 transition-all relative flex items-center justify-center cursor-pointer"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-                                </svg>
-                                {unreadCount > 0 && (
-                                    <span className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white ring-2 ring-[#00796b]">
-                                        {unreadCount}
-                                    </span>
-                                )}
-                            </button>
-
-                            {/* Notifications Dropdown Card */}
-                            {dropdownOpen && (
-                                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 text-gray-800 py-2 overflow-hidden">
-                                    <button
-                                        onClick={() => {
-                                            setDropdownOpen(false);
-                                            navigate('/notifications');
-                                        }}
-                                        className="w-full text-left px-4 py-2 text-sm font-bold text-[#00796b] hover:bg-gray-50 block transition-colors cursor-pointer"
-                                    >
-                                        View all notifications
-                                    </button>
-                                    <div className="border-b border-gray-100 my-1"></div>
-                                    
-                                    <div className="max-h-64 overflow-y-auto">
-                                        {notifications.length === 0 ? (
-                                            <div className="px-4 py-3 text-sm text-gray-400 text-center font-medium">
-                                                No notifications
-                                            </div>
-                                        ) : (
-                                            notifications.map((n) => (
-                                                <div
-                                                    key={n.id}
-                                                    onClick={() => handleNotificationSelect(n)}
-                                                    className={`px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0 text-left transition-colors ${!n.read ? 'bg-teal-50/40' : ''}`}
-                                                >
-                                                    <p className="text-sm font-bold text-gray-900 line-clamp-1">{n.title}</p>
-                                                    <p className="text-xs text-gray-500 font-medium mt-0.5 line-clamp-2">{n.body}</p>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Profile Button */}
-                        <button
-                            onClick={() => navigate('/profile')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-white/10 transition-all cursor-pointer"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                            </svg>
-                            <span className="hidden md:inline">{t('nav.profile')}</span>
-                        </button>
-
-                        {/* Logout Button */}
-                        <button
-                            onClick={handleLogout}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs md:text-sm font-black bg-red-600 hover:bg-red-700 text-white shadow-md transition-all cursor-pointer transform active:scale-98"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-                            </svg>
-                            {t('nav.logout')}
-                        </button>
-
-                    </div>
-                </div>
-            </div>
-        </nav>
-    );
-};
-
