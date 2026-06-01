@@ -10,9 +10,9 @@ export const verifyOTP = async (email, otp) => {
     return res.data;
 };
 
-export const loginUser = async (username, password) => {
+export const loginUser = async (email, password) => {
     const res = await axiosInstance.post('/auth/login/', {
-        username,
+        email,
         password,
     });
     return res.data;
