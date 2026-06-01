@@ -313,6 +313,101 @@ export default App;
 
 ==================== src/api/axios.js ====================
 
+
+
+
+
+import { createContext, useContext, useState } from 'react';
+import { authAPI } from '../services/api';
+
+const AuthContext = createContext();
+
+export const AuthProvider = ({ children }) => {
+    const [currentUser, setCurrentUser] = useState(() => {
+        const token = localStorage.getItem('access_token');
+        const username = localStorage.getItem('username');
+        const uid = localStorage.getItem('user_uid');
+        return token ? { token, username, uid } : null;
+    });
+
+    const [userRole, setUserRole] = useState(() => {
+        return localStorage.getItem('user_role') || null;
+    });
+
+    const [loading, setLoading] = useState(false); 
+
+    const login = async (username, password) => {
+        setLoading(true);
+        try {
+            const response = await authAPI.login(username, password);
+            const { access, refresh, role, username: resUsername, uid } = response.data;
+
+            localStorage.setItem('access_token', access);
+            localStorage.setItem('refresh_token', refresh);
+            localStorage.setItem('user_role', role);
+            localStorage.setItem('username', resUsername);
+            localStorage.setItem('user_uid', uid);
+
+            setCurrentUser({ token: access, username: resUsername, uid });
+            setUserRole(role);
+            setLoading(false);
+            return { success: true, role };
+        } catch (error) {
+            setLoading(false);
+            console.error('Login error:', error.response?.data || error.message);
+            throw new Error(error.response?.data?.detail || 'Invalid username or password.', { cause: error });
+        }
+    };
+
+    const register = async (userData) => {
+        setLoading(true);
+        try {
+            await authAPI.register(userData);
+            setLoading(false);
+            return await login(userData.username, userData.password);
+        } catch (error) {
+            setLoading(false);
+            console.error('Registration error:', error.response?.data || error.message);
+            
+            const errorData = error.response?.data;
+            let errorMsg = 'Registration failed. Please try again.';
+
+            if (errorData) {
+                // تحويل الداتا لنص صغير عشان نعمل فحص ذكي وسريع على الكلمات المفتاحية
+                const dataString = JSON.stringify(errorData).toLowerCase();
+                
+                if (dataString.includes('already exists') || dataString.includes('already registered') || dataString.includes('unique')) {
+                    errorMsg = 'This email or username is already registered. Please use another one or sign in.';
+                } else if (typeof errorData === 'object') {
+                    // لو فيه أخطاء تانية مجمعة (زي إن الباسورد ضعيف أو الحقول ناقصة) بيعرضها بشكل منسق
+                    errorMsg = Object.values(errorData).flat().join(' | ');
+                }
+            } else if (error.message.includes('Network Error')) {
+                errorMsg = 'Network error. Please check your internet connection or server status.';
+            }
+
+            // بنرمي الخطأ بالرسالة المفهومة والنظيفة لصفحة الـ Register
+            throw new Error(errorMsg, { cause: error });
+        }
+    };
+
+    const logout = () => {
+        localStorage.clear();
+        setCurrentUser(null);
+        setUserRole(null);
+    };
+
+    const value = { 
+        currentUser, 
+        userRole, 
+        userName: currentUser?.username || '', 
+        loading, 
+        login, 
+        register, 
+        logout 
+    };
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 import axios from 'axios';
 
 const axiosInstance = axios.create({
@@ -367,7 +462,6 @@ axiosInstance.interceptors.response.use(
 
 export default axiosInstance;
 
-==================== src/api/auth.js ====================
 
 import axiosInstance from './axios';
 
@@ -394,7 +488,6 @@ export const refreshToken = async (refresh) => {
     return res.data;
 };
 
-==================== src/context/AuthContext.jsx ====================
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import axiosInstance from '../api/axios';
@@ -994,7 +1087,18 @@ export const LanguageProvider = ({ children }) => {
 export const useLanguage = () => useContext(LanguageContext);
 
 
-==================== src/context/NotificationsContext.jsx ====================
+import { createContext, useContext, useEffect, useState } from 'react';
+import { db } from '../firebase/config';
+import {
+    collection,
+    query,
+    where,
+    onSnapshot,
+    addDoc,
+    updateDoc,
+    doc,
+    serverTimestamp,
+} from 'firebase/firestore';
 
 import {
     createContext,
@@ -1134,7 +1238,233 @@ export const store = configureStore({
 });
 
 
-==================== src/store/adminSlice.js ====================
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { db } from '../firebase/config';
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  addDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+} from 'firebase/firestore';
+
+const initialState = {
+  users: [],
+  doctors: [],
+  specialties: [],
+  appointments: [],
+  configs: [],
+  status: 'idle',
+  error: null,
+};
+
+export const fetchAllUsers = createAsyncThunk('admin/fetchAllUsers', async () => {
+  const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+});
+
+export const fetchDoctors = createAsyncThunk('admin/fetchDoctors', async () => {
+  const usersQuery = query(collection(db, 'users'), where('role', '==', 'doctor'));
+  const usersSnapshot = await getDocs(usersQuery);
+  const profilesSnapshot = await getDocs(collection(db, 'doctors_profiles'));
+  const profiles = new Map(profilesSnapshot.docs.map((docSnap) => [docSnap.id, docSnap.data()]));
+
+  return usersSnapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+    profile: profiles.get(docSnap.id) || {},
+  }));
+});
+
+export const fetchSpecialties = createAsyncThunk('admin/fetchSpecialties', async () => {
+  const snapshot = await getDocs(collection(db, 'specialties'));
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+});
+
+export const fetchAppointments = createAsyncThunk('admin/fetchAppointments', async () => {
+  const snapshot = await getDocs(collection(db, 'appointments'));
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+});
+
+export const fetchConfigs = createAsyncThunk('admin/fetchConfigs', async () => {
+  const snapshot = await getDocs(collection(db, 'system_configs'));
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+});
+
+export const updateUserStatus = createAsyncThunk(
+  'admin/updateUserStatus',
+  async ({ userId, status }) => {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, { status });
+    return { userId, status };
+  }
+);
+
+export const addSpecialty = createAsyncThunk('admin/addSpecialty', async ({ name, description }) => {
+  const docRef = await addDoc(collection(db, 'specialties'), {
+    name,
+    description,
+    createdAt: new Date(),
+  });
+  return { id: docRef.id, name, description };
+});
+
+export const updateSpecialty = createAsyncThunk(
+  'admin/updateSpecialty',
+  async ({ specialtyId, name, description }) => {
+    const specialtyRef = doc(db, 'specialties', specialtyId);
+    await updateDoc(specialtyRef, { name, description });
+    return { specialtyId, name, description };
+  }
+);
+
+export const deleteSpecialty = createAsyncThunk('admin/deleteSpecialty', async ({ specialtyId }) => {
+  const specialtyRef = doc(db, 'specialties', specialtyId);
+  await deleteDoc(specialtyRef);
+  return { specialtyId };
+});
+
+export const updateDoctorProfile = createAsyncThunk(
+  'admin/updateDoctorProfile',
+  async ({ doctorId, specialty, bio, status, consultationFee, location, phone }) => {
+    const profileRef = doc(db, 'doctors_profiles', doctorId);
+    await setDoc(
+      profileRef,
+      {
+        doctor_id: doctorId,
+        specialty,
+        bio,
+        consultationFee: Number(consultationFee) || 0,
+        location,
+        phone,
+      },
+      { merge: true }
+    );
+    if (status) {
+      const userRef = doc(db, 'users', doctorId);
+      await updateDoc(userRef, { status });
+    }
+    return { doctorId, specialty, bio, status, consultationFee: Number(consultationFee) || 0, location, phone };
+  }
+);
+
+export const addConfig = createAsyncThunk('admin/addConfig', async ({ configKey, configValue }) => {
+  const docRef = await addDoc(collection(db, 'system_configs'), {
+    key: configKey,
+    value: configValue,
+    createdAt: new Date(),
+  });
+  return { id: docRef.id, key: configKey, value: configValue };
+});
+
+export const updateConfig = createAsyncThunk(
+  'admin/updateConfig',
+  async ({ configId, key, value }) => {
+    const configRef = doc(db, 'system_configs', configId);
+    await updateDoc(configRef, { key, value });
+    return { configId, key, value };
+  }
+);
+
+export const deleteConfig = createAsyncThunk('admin/deleteConfig', async ({ configId }) => {
+  const configRef = doc(db, 'system_configs', configId);
+  await deleteDoc(configRef);
+  return { configId };
+});
+
+const adminSlice = createSlice({
+  name: 'admin',
+  initialState,
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchAllUsers.pending, (state) => {
+        state.status = 'loading';
+      })
+      .addCase(fetchAllUsers.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.users = action.payload;
+      })
+      .addCase(fetchAllUsers.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.error.message;
+      })
+      .addCase(fetchDoctors.fulfilled, (state, action) => {
+        state.doctors = action.payload;
+      })
+      .addCase(fetchSpecialties.fulfilled, (state, action) => {
+        state.specialties = action.payload;
+      })
+      .addCase(fetchAppointments.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(fetchAppointments.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.appointments = action.payload;
+      })
+      .addCase(fetchAppointments.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.error.message;
+      })
+      .addCase(fetchConfigs.fulfilled, (state, action) => {
+        state.configs = action.payload;
+      })
+      .addCase(updateUserStatus.fulfilled, (state, action) => {
+        const { userId, status } = action.payload;
+        state.users = state.users.map((user) => (user.id === userId ? { ...user, status } : user));
+        state.doctors = state.doctors.map((doctor) =>
+          doctor.id === userId ? { ...doctor, status } : doctor
+        );
+      })
+      .addCase(addSpecialty.fulfilled, (state, action) => {
+        state.specialties.unshift(action.payload);
+      })
+      .addCase(updateSpecialty.fulfilled, (state, action) => {
+        const { specialtyId, name, description } = action.payload;
+        state.specialties = state.specialties.map((item) =>
+          item.id === specialtyId ? { ...item, name, description } : item
+        );
+      })
+      .addCase(deleteSpecialty.fulfilled, (state, action) => {
+        state.specialties = state.specialties.filter((item) => item.id !== action.payload.specialtyId);
+      })
+      .addCase(updateDoctorProfile.fulfilled, (state, action) => {
+        const { doctorId, specialty, bio, status, consultationFee, location, phone } = action.payload;
+        state.doctors = state.doctors.map((doctor) =>
+          doctor.id === doctorId
+            ? {
+                ...doctor,
+                profile: { ...doctor.profile, specialty, bio, consultationFee, location, phone },
+                status: status || doctor.status,
+              }
+            : doctor
+        );
+        if (status) {
+          state.users = state.users.map((user) =>
+            user.id === doctorId ? { ...user, status } : user
+          );
+        }
+      })
+      .addCase(addConfig.fulfilled, (state, action) => {
+        state.configs.unshift(action.payload);
+      })
+      .addCase(updateConfig.fulfilled, (state, action) => {
+        const { configId, key, value } = action.payload;
+        state.configs = state.configs.map((config) =>
+          config.id === configId ? { ...config, key, value } : config
+        );
+      })
+      .addCase(deleteConfig.fulfilled, (state, action) => {
+        state.configs = state.configs.filter((config) => config.id !== action.payload.configId);
+      });
+  },
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axiosInstance from '../api/axios';
@@ -1348,6 +1678,50 @@ const adminSlice = createSlice({
 
 export default adminSlice.reducer;
 
+
+import axiosInstance from '../api/axios';
+
+export default axiosInstance;
+
+export const authAPI = {
+    login: (username, password) =>
+        axiosInstance.post('/auth/login/', { username, password }),
+    register: (userData) => axiosInstance.post('/register/', userData),
+    verifyOTP: (email, otp) =>
+        axiosInstance.post('/auth/verify-otp/', { email, otp }),
+};
+
+export const doctorAPI = {
+    getApprovedDoctors: () => axiosInstance.get('/doctors/'),
+    getAvailableSlots: () => axiosInstance.get('/slots/available/'),
+    getMySlots: () => axiosInstance.get('/slots/'),
+    addSlot: (slotData) => axiosInstance.post('/slots/', slotData),
+    deleteSlot: (slotId) => axiosInstance.delete(`/slots/${slotId}/`),
+};
+
+export const appointmentAPI = {
+    getMyAppointments: () => axiosInstance.get('/appointments/'),
+    book: (data) => axiosInstance.post('/appointments/book/', data),
+    approveAppointment: (id) =>
+        axiosInstance.post(`/appointments/${id}/approve/`),
+    cancelAppointment: (id, reason) =>
+        axiosInstance.post(`/appointments/${id}/cancel/`, { reason }),
+    completeAppointment: (id, data) =>
+        axiosInstance.post(`/appointments/${id}/complete/`, data),
+};
+
+export const specialtyAPI = {
+    getSpecialties: () => axiosInstance.get('/specialties/'),
+};
+
+export const profileAPI = {
+    getDoctorProfile: () => axiosInstance.get('/doctor-profiles/me/'),
+    saveDoctorProfile: (data) =>
+        axiosInstance.patch('/doctor-profiles/me/', data),
+    getPatientProfile: () => axiosInstance.get('/patient-profiles/me/'),
+    savePatientProfile: (data) =>
+        axiosInstance.patch('/patient-profiles/me/', data),
+};
 
 ==================== src/firebase/config.js ====================
 
@@ -1625,6 +1999,90 @@ export default Landing;
 
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { authAPI } from '../services/api'; 
+import Swal from 'sweetalert2';
+import { useLanguage } from '../context/LanguageContext';
+
+const Register = () => {
+  const navigate = useNavigate();
+  const { t } = useLanguage();
+
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState('patient');
+  const [loading, setLoading] = useState(false); 
+
+  const Toast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+  });
+
+  const validateForm = () => {
+    if (name.trim().length < 3) {
+      Toast.fire({ icon: 'error', title: t('register.toast.invalidName') });
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Toast.fire({ icon: 'error', title: t('register.toast.invalidEmail') });
+      return false;
+    }
+    if (password.length < 6) {
+      Toast.fire({ icon: 'error', title: t('register.toast.invalidPassword') });
+      return false;
+    }
+    if (password !== confirmPassword) {
+      Toast.fire({ icon: 'error', title: t('register.toast.passwordMismatch') });
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm() || loading) return;
+
+    setLoading(true);
+
+    const nameParts = name.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || 'User';
+
+    const userData = {
+      username: email, 
+      email: email,
+      password: password,
+      role: role,
+      first_name: firstName,
+      last_name: lastName,
+      phone: ''
+    };
+
+    try {
+      await authAPI.register(userData);
+      
+      Swal.fire({
+        title: 'Account Registered',
+        text: 'Please check your email. We have sent a verification code (OTP) to activate your account.',
+        icon: 'success',
+        confirmButtonColor: '#00796b',
+        confirmButtonText: 'Enter OTP',
+      }).then(() => {
+        navigate('/verify-otp', { state: { email: email } });
+      });
+    } catch (err) {
+      console.error(err);
+      Toast.fire({ 
+        icon: 'error', 
+        title: err.response?.data?.error || err.message || t('register.toast.failed') 
 import { Link, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { HospitalIcon } from 'lucide-react';
@@ -1785,7 +2243,6 @@ const Login = () => {
 
 export default Login;
 
-==================== src/pages/register.jsx ====================
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -2320,6 +2777,95 @@ const Register = () => {
 export default Register;
 
 
+import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { authAPI } from '../services/api'; 
+import Swal from 'sweetalert2';
+
+export const VerifyOTP = () => {
+  const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const email = location.state?.email || '';
+
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    if (!otp || otp.length < 6) {
+      Swal.fire({ icon: 'warning', title: 'Validation Error', text: 'Please enter a valid 6-digit OTP code.' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authAPI.verifyOTP(email, otp);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Account Verified!',
+        text: 'Your account has been activated successfully. You can now log in.',
+        confirmButtonColor: '#00796b',
+      });
+
+      navigate('/login');
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Verification Failed',
+        text: err.response?.data?.error || 'Invalid or expired OTP code. Please try again.',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans text-left">
+      <div className="sm:mx-auto w-full max-w-md">
+        <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 rounded-3xl border border-gray-100 sm:px-10">
+          
+          <div className="text-center mb-6">
+            <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 mx-auto mb-3 shadow-xs">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286Zm0 13.036h.008v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-black text-gray-800 tracking-tight">Verify Your Account</h2>
+            <p className="mt-1.5 text-xs font-medium text-gray-500">
+              We have sent a 6-digit code to <span className="text-teal-600 font-bold block mt-0.5">{email || 'your email'}</span>
+            </p>
+          </div>
+
+          <form onSubmit={handleVerify} className="space-y-5">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block pl-1">Enter OTP Code</label>
+              <input
+                type="text"
+                maxLength="6"
+                placeholder="000000"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-600 focus:bg-white text-center text-xl font-black tracking-widest text-gray-800 transition-all placeholder:text-gray-300"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Verifying...' : 'Verify & Activate'}
+            </button>
+          </form>
+
+        </div>
+      </div>
+    </div>
+  );
+};
+
 ==================== src/pages/Profile.jsx ====================
 
 import { useState, useEffect } from 'react';
@@ -2684,6 +3230,227 @@ const NotificationsPage = () => {
                                             : 'action.selected',
                                     },
                                 }}
+                            >
+                                <ListItemText
+                                    primary={
+                                        <Typography
+                                            variant="body1"
+                                            sx={{
+                                                fontWeight: n.read
+                                                    ? 'normal'
+                                                    : 'bold',
+                                            }}
+                                        >
+                                            {n.title}
+                                        </Typography>
+                                    }
+                                    secondary={n.body}
+                                />
+                                <ListItemSecondaryAction>
+                                    <IconButton
+                                        edge="end"
+                                        onClick={() => handleOpen(n)}
+                                        title="Open"
+                                        sx={{ mr: 1 }}
+                                    >
+                                        <OpenInNewIcon />
+                                    </IconButton>
+                                    {!n.read && (
+                                        <IconButton
+                                            edge="end"
+                                            onClick={() => markAsRead(n.id)}
+                                            title="Mark as read"
+                                            color="success"
+                                            sx={{ mr: 1 }}
+                                        >
+                                            <DoneIcon />
+                                        </IconButton>
+                                    )}
+                                    <IconButton
+                                        edge="end"
+                                        onClick={() => handleDelete(n)}
+                                        title="Delete"
+                                        color="error"
+                                    >
+                                        <DeleteIcon />
+                                    </IconButton>
+                                </ListItemSecondaryAction>
+                            </ListItem>
+                        ))}
+                    </List>
+                )}
+            </Paper>
+        </Container>
+    );
+};
+
+export default NotificationsPage;
+
+
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
+import {
+    Container,
+    Paper,
+    Typography,
+    Box,
+    Button,
+    TextField,
+} from '@mui/material';
+import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationsContext';
+import Swal from 'sweetalert2';
+
+const AppointmentDetail = () => {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const { userRole } = useAuth();
+    const { sendNotification } = useNotifications();
+    const [appointment, setAppointment] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [diagnosis, setDiagnosis] = useState('');
+    const [prescription, setPrescription] = useState('');
+
+    useEffect(() => {
+        const load = async () => {
+            const ref = doc(db, 'appointments', id);
+            const snap = await getDoc(ref);
+            if (snap.exists()) setAppointment({ id: snap.id, ...snap.data() });
+            setLoading(false);
+        };
+        load();
+    }, [id]);
+
+    const handleApprove = async () => {
+        try {
+            const ref = doc(db, 'appointments', id);
+            await updateDoc(ref, { status: 'Approved' });
+            if (appointment?.patientId)
+                await sendNotification(
+                    appointment.patientId,
+                    'Appointment approved',
+                    'Your appointment was approved.',
+                    { appointmentId: id }
+                );
+            Swal.fire('Approved', '', 'success');
+            navigate(userRole === 'doctor' ? '/doctor' : '/patient');
+        } catch (err) {
+            console.error(err);
+            Swal.fire('Failed', '', 'error');
+        }
+    };
+
+    const handleCancel = async () => {
+        try {
+            const ref = doc(db, 'appointments', id);
+            await updateDoc(ref, { status: 'Cancelled' });
+            if (appointment?.patientId)
+                await sendNotification(
+                    appointment.patientId,
+                    'Appointment cancelled',
+                    'Your appointment was cancelled.',
+                    { appointmentId: id }
+                );
+            Swal.fire('Cancelled', '', 'success');
+            navigate(userRole === 'doctor' ? '/doctor' : '/patient');
+        } catch (err) {
+            console.error(err);
+            Swal.fire('Failed', '', 'error');
+        }
+    };
+
+    const handleComplete = async () => {
+        if (!diagnosis.trim() || !prescription.trim()) {
+            Swal.fire('Please fill diagnosis and prescription', '', 'warning');
+            return;
+        }
+        try {
+            const ref = doc(db, 'appointments', id);
+            await updateDoc(ref, {
+                status: 'Completed',
+                medicalRecord: {
+                    diagnosis,
+                    prescription,
+                    date: new Date().toLocaleDateString(),
+                },
+            });
+            if (appointment?.patientId)
+                await sendNotification(
+                    appointment.patientId,
+                    'Visit completed',
+                    'Your visit was completed and prescription is available.',
+                    { appointmentId: id }
+                );
+            Swal.fire('Completed', '', 'success');
+            navigate(userRole === 'doctor' ? '/doctor' : '/patient');
+        } catch (err) {
+            console.error(err);
+            Swal.fire('Failed', '', 'error');
+        }
+    };
+
+    if (loading)
+        return (
+            <Container sx={{ mt: 4 }}>
+                <Typography>Loading...</Typography>
+            </Container>
+        );
+    if (!appointment)
+        return (
+            <Container sx={{ mt: 4 }}>
+                <Typography>No appointment found.</Typography>
+            </Container>
+        );
+
+    return (
+        <Container maxWidth="md" sx={{ mt: 4 }}>
+            <Paper sx={{ p: 3 }} elevation={3}>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2 }}>
+                    Appointment Details
+                </Typography>
+                <Typography>
+                    <strong>Patient:</strong> {appointment.patientName}
+                </Typography>
+                <Typography>
+                    <strong>Doctor:</strong> {appointment.doctorName}
+                </Typography>
+                <Typography>
+                    <strong>Day / Time:</strong> {appointment.day}{' '}
+                    {appointment.time}
+                </Typography>
+                <Typography>
+                    <strong>Status:</strong> {appointment.status}
+                </Typography>
+
+                <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
+                    {userRole === 'doctor' &&
+                        appointment.status === 'Pending' && (
+                            <>
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    onClick={handleApprove}
+                                >
+                                    Approve
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    color="error"
+                                    onClick={handleCancel}
+                                >
+                                    Reject / Cancel
+                                </Button>
+                            </>
+                        )}
+
+                    {userRole === 'patient' &&
+                        appointment.status === 'Pending' && (
+                            <Button
+                                variant="outlined"
+                                color="error"
+                                onClick={handleCancel}
                             >
                                 <ListItemText
                                     primary={
@@ -4815,3 +5582,165 @@ export const AdminDashBoard = () => {
     </Container>
   );
 };
+
+
+import { useAuth } from '../context/AuthContext';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext';
+import { useNotifications } from '../context/NotificationsContext';
+
+export const Navbar = () => {
+    const { currentUser, userRole, userName, logout } = useAuth();
+    const { t, toggleLanguage, language } = useLanguage();
+    const navigate = useNavigate();
+    const { notifications, markAsRead } = useNotifications();
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    const handleLogout = async () => {
+        try {
+            await logout();
+            navigate('/login');
+        } catch (err) {
+            console.error('Logout failed: ', err);
+        }
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    if (!currentUser) return null;
+
+    const unreadCount = notifications.filter((n) => !n.read).length;
+
+    const handleNotificationSelect = async (n) => {
+        if (!n.read) await markAsRead(n.id);
+        setDropdownOpen(false);
+    };
+
+    return (
+        <nav className="bg-[#00796b] text-white shadow-md select-none relative z-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                    
+                    {/* Left Section: Brand & Panel Tag */}
+                    <div className="flex items-center gap-3">
+                        <span
+                            onClick={() => navigate(currentUser ? '/home' : '/')}
+                            className="text-lg font-black tracking-wider cursor-pointer flex items-center gap-1 select-none"
+                        >
+                            {t('nav.brand')} 🩺
+                        </span>
+                        <span className="bg-white/20 text-[10px] md:text-xs px-2 py-0.5 rounded-md uppercase font-extrabold tracking-wide">
+                            {t(`roles.${userRole}`)} {t('nav.panel')}
+                        </span>
+                    </div>
+
+                    {/* Right Section: User Info & Actions */}
+                    <div className="flex items-center gap-2 md:gap-5">
+                        
+                        {/* Welcome Message (Displays Username/Email from Context) */}
+                        <span className="text-sm font-medium hidden sm:inline-block">
+                            {t('nav.hello')},{' '}
+                            <strong className="font-black text-teal-100">
+                                {userName || t('common.unknown')}
+                            </strong>
+                        </span>
+
+                        {/* Language Switcher */}
+                        <button
+                            onClick={toggleLanguage}
+                            className="px-3 py-1.5 rounded-lg text-sm font-bold bg-transparent hover:bg-white/10 transition-all cursor-pointer"
+                        >
+                            {language === 'en' ? t('nav.changeLanguage') : t('nav.changeLanguage')}
+                        </button>
+
+                        {/* Notifications Icon & Badge Dropdown Container */}
+                        <div className="relative" ref={dropdownRef}>
+                            <button
+                                onClick={() => setDropdownOpen(!dropdownOpen)}
+                                className="p-2 rounded-full hover:bg-white/10 transition-all relative flex items-center justify-center cursor-pointer"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                                </svg>
+                                {unreadCount > 0 && (
+                                    <span className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white ring-2 ring-[#00796b]">
+                                        {unreadCount}
+                                    </span>
+                                )}
+                            </button>
+
+                            {/* Notifications Dropdown Card */}
+                            {dropdownOpen && (
+                                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 text-gray-800 py-2 overflow-hidden">
+                                    <button
+                                        onClick={() => {
+                                            setDropdownOpen(false);
+                                            navigate('/notifications');
+                                        }}
+                                        className="w-full text-left px-4 py-2 text-sm font-bold text-[#00796b] hover:bg-gray-50 block transition-colors cursor-pointer"
+                                    >
+                                        View all notifications
+                                    </button>
+                                    <div className="border-b border-gray-100 my-1"></div>
+                                    
+                                    <div className="max-h-64 overflow-y-auto">
+                                        {notifications.length === 0 ? (
+                                            <div className="px-4 py-3 text-sm text-gray-400 text-center font-medium">
+                                                No notifications
+                                            </div>
+                                        ) : (
+                                            notifications.map((n) => (
+                                                <div
+                                                    key={n.id}
+                                                    onClick={() => handleNotificationSelect(n)}
+                                                    className={`px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0 text-left transition-colors ${!n.read ? 'bg-teal-50/40' : ''}`}
+                                                >
+                                                    <p className="text-sm font-bold text-gray-900 line-clamp-1">{n.title}</p>
+                                                    <p className="text-xs text-gray-500 font-medium mt-0.5 line-clamp-2">{n.body}</p>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Profile Button */}
+                        <button
+                            onClick={() => navigate('/profile')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-white/10 transition-all cursor-pointer"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            </svg>
+                            <span className="hidden md:inline">{t('nav.profile')}</span>
+                        </button>
+
+                        {/* Logout Button */}
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs md:text-sm font-black bg-red-600 hover:bg-red-700 text-white shadow-md transition-all cursor-pointer transform active:scale-98"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                            </svg>
+                            {t('nav.logout')}
+                        </button>
+
+                    </div>
+                </div>
+            </div>
+        </nav>
+    );
+};
+

@@ -5,10 +5,7 @@ export default axiosInstance;
 export const authAPI = {
     login: (email, password) =>
         axiosInstance.post('/auth/login/', { email, password }),
-
-    register: (userData) =>
-        axiosInstance.post('/register/', userData),
-
+    register: (userData) => axiosInstance.post('/register/', userData),
     verifyOTP: (email, otp) =>
         axiosInstance.post('/auth/verify-otp/', { email, otp }),
 };
