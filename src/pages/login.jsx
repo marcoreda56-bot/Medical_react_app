@@ -2,24 +2,16 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
-import {
-    Grid,
-    Box,
-    Paper,
-    Avatar,
-    Typography,
-    TextField,
-    Button,
-} from '@mui/material';
-import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
-import { useLanguage } from '../context/LanguageContext';
+import { HospitalIcon } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
-    const { login } = useAuth();
-    const { t } = useLanguage();
+    const { login, loginWithGoogle } = useAuth();
     const navigate = useNavigate();
+    
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [selectedRole, setSelectedRole] = useState('patient');
 
     const Toast = Swal.mixin({
         toast: true,
@@ -29,17 +21,20 @@ const Login = () => {
         timerProgressBar: true,
     });
 
+    const redirectByRole = (role) => {
+        navigate(
+            role === 'doctor'  ? '/doctor'  :
+            role === 'patient' ? '/patient' : '/admin'
+        );
+    };
+
     const validateForm = () => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            Toast.fire({ icon: 'error', title: t('login.toast.invalidEmail') });
+        if (!email || !email.includes('@')) {
+            Toast.fire({ icon: 'error', title: 'Please enter a valid email address.' });
             return false;
         }
         if (password.length < 6) {
-            Toast.fire({
-                icon: 'error',
-                title: t('login.toast.invalidPassword'),
-            });
+            Toast.fire({ icon: 'error', title: 'Password must be at least 6 characters long.' });
             return false;
         }
         return true;
@@ -47,234 +42,119 @@ const Login = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
         if (!validateForm()) return;
+
         try {
             const user = await login(email, password);
-            Toast.fire({ icon: 'success', title: t('login.toast.success') });
-            if (user.role === 'doctor') navigate('/doctor');
-            else if (user.role === 'patient') navigate('/patient');
-            else if (user.role === 'admin') navigate('/admin');
-            else navigate('/');
+            Toast.fire({ icon: 'success', title: 'Logged in successfully!' });
+            redirectByRole(user.role);
         } catch (err) {
-            const msg = err.response?.data?.detail || err.message;
-            if (
-                msg?.includes('No active account') ||
-                msg?.includes('credentials')
-            ) {
-                Toast.fire({
-                    icon: 'error',
-                    title: t('login.toast.invalidCredentials'),
-                });
-            } else {
-                Toast.fire({ icon: 'error', title: t('login.toast.failed') });
-            }
+            Toast.fire({ icon: 'error', title: 'Invalid credentials or server error.' });
+        }
+    };
+
+    const handleGoogleSuccess = async ({ credential }) => {
+        try {
+            const user = await loginWithGoogle(credential, selectedRole);
+            Toast.fire({ icon: 'success', title: 'Google login successful!' });
+            redirectByRole(user.role);
+        } catch (err) {
+            Toast.fire({ icon: 'error', title: 'Google login failed.' });
         }
     };
 
     return (
-        <Grid container component="main" sx={{ height: '100vh' }}>
-            <Grid
-                item
-                xs={false}
-                sm={4}
-                md={7}
-                sx={{
-                    backgroundImage:
-                        'url(https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1200&q=80)',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundColor: (theme) =>
-                        theme.palette.mode === 'light'
-                            ? theme.palette.grey[50]
-                            : theme.palette.grey[900],
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    position: 'relative',
-                    display: { xs: 'none', sm: 'flex' },
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        background:
-                            'linear-gradient(135deg, rgba(0, 77, 64, 0.85) 0%, rgba(0, 121, 107, 0.6) 100%)',
-                    },
-                }}
+        <div className="flex h-screen w-full">
+            {/* Left panel */}
+            <div
+                className="hidden sm:flex w-0 sm:w-1/3 md:w-7/12 relative bg-cover bg-center items-center justify-center"
+                style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1200&q=80)' }}
             >
-                <Box
-                    sx={{
-                        position: 'relative',
-                        color: '#fff',
-                        px: 6,
-                        textAlign: 'left',
-                        maxWidth: '600px',
-                    }}
-                >
-                    <Typography
-                        variant="h3"
-                        component="h1"
-                        sx={{ fontWeight: 'bold', mb: 2, letterSpacing: 1 }}
-                    >
-                        {t('login.portalTitle')}
-                    </Typography>
-                    <Typography
-                        variant="h6"
-                        sx={{
-                            opacity: 0.9,
-                            fontWeight: 'normal',
-                            lineHeight: 1.6,
-                        }}
-                    >
-                        Empowering healthcare teams and patient coordination
-                        through advanced real-time medical insights.
-                    </Typography>
-                </Box>
-            </Grid>
+                <div className="absolute inset-0 bg-teal-900 bg-opacity-70" />
+                <div className="relative px-12 text-white max-w-lg">
+                    <h1 className="text-5xl font-bold mb-6">Medical Portal</h1>
+                    <p className="text-xl opacity-90 leading-relaxed">
+                        Empowering healthcare teams and patient coordination through advanced real-time medical insights.
+                    </p>
+                </div>
+            </div>
 
-            <Grid
-                item
-                xs={12}
-                sm={8}
-                md={5}
-                component={Paper}
-                elevation={0}
-                square
-                sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    bgcolor: '#fafafa',
-                }}
-            >
-                <Box
-                    sx={{
-                        my: 8,
-                        mx: 4,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        width: '100%',
-                        maxWidth: '400px',
-                        p: 3,
-                        bgcolor: '#fff',
-                        borderRadius: 4,
-                        boxShadow: '0px 10px 30px rgba(0,0,0,0.04)',
-                    }}
-                >
-                    <Avatar
-                        sx={{
-                            m: 1,
-                            bgcolor: '#e0f2f1',
-                            width: 64,
-                            height: 64,
-                            border: '2px solid #00796b',
-                        }}
-                    >
-                        <LocalHospitalIcon
-                            sx={{ color: '#00796b', fontSize: 35 }}
-                        />
-                    </Avatar>
-                    <Typography
-                        component="h1"
-                        variant="h4"
-                        sx={{ fontWeight: '800', color: '#00796b', mt: 1 }}
-                    >
-                        {t('login.title')}
-                    </Typography>
-                    <Typography
-                        variant="body2"
-                        color="textSecondary"
-                        sx={{ mb: 4, mt: 0.5 }}
-                    >
-                        {t('login.subtitle')}
-                    </Typography>
-                    <Box
-                        component="form"
-                        onSubmit={handleSubmit}
-                        noValidate
-                        sx={{ width: '100%' }}
-                    >
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            label={t('login.email')}
-                            type="email"
-                            autoFocus
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 2,
-                                    '&.Mui-focused fieldset': {
-                                        borderColor: '#00796b',
-                                    },
-                                },
-                                '& .MuiInputLabel-root.Mui-focused': {
-                                    color: '#00796b',
-                                },
-                            }}
-                        />
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            label={t('login.password')}
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 2,
-                                    '&.Mui-focused fieldset': {
-                                        borderColor: '#00796b',
-                                    },
-                                },
-                                '& .MuiInputLabel-root.Mui-focused': {
-                                    color: '#00796b',
-                                },
-                            }}
-                        />
-                        <Button
+            {/* Right panel */}
+            <div className="w-full sm:w-2/3 md:w-5/12 flex items-center justify-center bg-gray-50 p-8">
+                <div className="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl">
+                    <div className="flex flex-col items-center mb-8">
+                        <div className="bg-teal-50 p-4 rounded-full border-2 border-teal-700 mb-4">
+                            <HospitalIcon className="text-teal-700 w-10 h-10" />
+                        </div>
+                        <h2 className="text-3xl font-extrabold text-teal-800">Welcome Back</h2>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Email Address</label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="mt-1 w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Password</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="mt-1 w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                            />
+                        </div>
+                        <button
                             type="submit"
-                            fullWidth
-                            variant="contained"
-                            sx={{
-                                mt: 4,
-                                mb: 2,
-                                padding: 1.5,
-                                bgcolor: '#00796b',
-                                '&:hover': { bgcolor: '#004d40' },
-                                fontWeight: 'bold',
-                                borderRadius: 2.5,
-                                textTransform: 'none',
-                                fontSize: '1rem',
-                            }}
+                            className="w-full py-4 bg-teal-700 hover:bg-teal-900 text-white font-bold rounded-xl transition duration-300"
                         >
-                            {t('login.signIn')}
-                        </Button>
-                        <Box sx={{ mt: 3, textAlign: 'center' }}>
-                            <Typography variant="body2" color="textSecondary">
-                                {t('login.noAccount')}{' '}
-                                <Link
-                                    to="/register"
-                                    style={{
-                                        color: '#00796b',
-                                        textDecoration: 'none',
-                                        fontWeight: 'bold',
-                                    }}
-                                >
-                                    {t('login.createAccount')}
-                                </Link>
-                            </Typography>
-                        </Box>
-                    </Box>
-                </Box>
-            </Grid>
-        </Grid>
+                            Sign In
+                        </button>
+                    </form>
+
+                    <div className="flex items-center my-5 gap-3">
+                        <hr className="flex-1 border-gray-200" />
+                        <span className="text-xs text-gray-400 uppercase tracking-wide">or</span>
+                        <hr className="flex-1 border-gray-200" />
+                    </div>
+
+                    <div className="flex justify-center gap-6 mb-4">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                            <input type="radio" value="patient" checked={selectedRole === 'patient'} onChange={(e) => setSelectedRole(e.target.value)} />
+                            Patient
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                            <input type="radio" value="doctor" checked={selectedRole === 'doctor'} onChange={(e) => setSelectedRole(e.target.value)} />
+                            Doctor
+                        </label>
+                    </div>
+
+                    <div className="flex justify-center">
+                        <GoogleLogin
+                            onSuccess={handleGoogleSuccess}
+                            onError={() => Toast.fire({ icon: 'error', title: 'Google login failed' })}
+                            theme="outline"
+                            size="large"
+                            width="100%"
+                            locale="en"
+                        />
+                        
+                    </div>
+
+                    <p className="text-center text-sm text-gray-500 mt-6">
+                        Don't have an account?{' '}
+                        <Link to="/register" className="text-teal-700 font-bold hover:underline">
+                            Create Account
+                        </Link>
+                    </p>
+                </div>
+            </div>
+        </div>
     );
 };
 

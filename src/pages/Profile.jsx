@@ -11,7 +11,6 @@ export const Profile = () => {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
 
-    // الـ State الموحدة لبيانات بروفايل الدكتور
     const [doctorData, setDoctorData] = useState({
         specialty: '',
         bio: '',
@@ -19,7 +18,6 @@ export const Profile = () => {
         clinic_address: '',
     });
 
-    // الـ State الموحدة لبيانات بروفايل المريض
     const [patientData, setPatientData] = useState({
         date_of_birth: '',
         gender: '',
@@ -27,14 +25,11 @@ export const Profile = () => {
         address: '',
     });
 
-    // جلب البيانات عند تحميل الصفحة بناءً على الـ Role
     useEffect(() => {
-        // 1. جلب التخصصات (مهمة للدكتور وممكن يحتاجها المريض لرؤية التخصصات)
         specialtyAPI.getSpecialties()
             .then(res => setSpecialties(res.data))
             .catch(err => console.error('Failed to fetch specialties:', err));
 
-        // 2. جلب البيانات بناءً على نوع المستخدم
         if (userRole === 'doctor') {
             profileAPI.getDoctorProfile()
                 .then(res => {
@@ -49,12 +44,8 @@ export const Profile = () => {
                 })
                 .catch(err => console.error('Failed to fetch doctor profile:', err));
         } else if (userRole === 'patient') {
-            // ملحوظة: لو الباك إند لسه معملتش endpoint مخصصة لـ patient-profiles/me/
-            // تقدر تجيبها عادي بالـ Endpoints الأساسية أو نعدلها بالباك إند، حالياً هنربطها بـ endpoint المريض
-            api.get('/users/me/') // الباكيند بتاعك بيرجع بيانات اليوزر الأساسية هنا
+            api.get('/users/me/')
                 .then(res => {
-                    // هنا بنربط مع الـ Patient Profile الملحق باليوزر لو الـ serializer بيبعته، أو نكلم الـ endpoint بتاعته
-                    // فرضا أننا هنكلم المريض مباشرة بناء على تصميم الـ ViewSet
                     api.get('/patient-profiles/me/').then(pRes => {
                         setPatientData({
                             date_of_birth: pRes.data.date_of_birth || '',
@@ -63,7 +54,6 @@ export const Profile = () => {
                             address: pRes.data.address || '',
                         });
                     }).catch(() => {
-                        // fallback لو مفيش endpoint منفصلة وجاية مع الـ /me
                         if(res.data.profile) {
                             setPatientData(res.data.profile);
                         }
@@ -83,7 +73,6 @@ export const Profile = () => {
         setPatientData({ ...patientData, [name]: value });
     };
 
-    // حفظ البيانات
     const handleSaveProfile = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -98,7 +87,6 @@ export const Profile = () => {
                 };
                 await profileAPI.saveDoctorProfile(dataToSend);
             } else if (userRole === 'patient') {
-                // تعديل بروفايل المريض عبر الـ API الخاص به
                 await api.patch('/patient-profiles/me/', patientData);
             }
             
@@ -120,7 +108,6 @@ export const Profile = () => {
         <div className="min-h-screen bg-[#f6f8fb] py-10 px-4">
             <div className="max-w-3xl mx-auto bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden text-left">
                 
-                {/* Header Banner */}
                 <div className="bg-gradient-to-r from-[#00796b] to-[#004d40] px-8 py-6 text-white">
                     <h1 className="text-2xl font-black tracking-wide">
                         {userRole === 'doctor' ? 'Doctor Profile Settings' : 'Patient Profile Settings'}
@@ -132,7 +119,6 @@ export const Profile = () => {
 
                 <form onSubmit={handleSaveProfile} className="p-8 space-y-6">
                     
-                    {/* Feedback Alerts */}
                     {message.text && (
                         <div className={`p-4 rounded-xl text-sm font-bold flex items-center gap-2 ${
                             message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
@@ -141,11 +127,9 @@ export const Profile = () => {
                         </div>
                     )}
 
-                    {/* 🩺 لو اليوزر دكــتـور يظهر الفورم ده */}
                     {userRole === 'doctor' && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* الـ Dropdown للتخصصات */}
                                 <div className="flex flex-col gap-2">
                                     <label className="text-sm font-black text-gray-700">Specialty</label>
                                     <select
@@ -164,7 +148,6 @@ export const Profile = () => {
                                     </select>
                                 </div>
 
-                                {/* Consultation Fee */}
                                 <div className="flex flex-col gap-2">
                                     <label className="text-sm font-black text-gray-700">Consultation Fee ($)</label>
                                     <input
@@ -177,8 +160,6 @@ export const Profile = () => {
                                         className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#00796b] focus:border-transparent transition-all"
                                     />
                                 </div>
-
-                                {/* Clinic Address */}
                                 <div className="flex flex-col gap-2 md:col-span-2">
                                     <label className="text-sm font-black text-gray-700">Clinic Address</label>
                                     <input
@@ -192,7 +173,6 @@ export const Profile = () => {
                                 </div>
                             </div>
 
-                            {/* Biography */}
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-black text-gray-700">Biography / Notes</label>
                                 <textarea
@@ -207,7 +187,6 @@ export const Profile = () => {
                         </div>
                     )}
 
-                    {/* 🩸 لو اليوزر مـريـض يظهر الفورم ده */}
                     {userRole === 'patient' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {/* Date of Birth */}

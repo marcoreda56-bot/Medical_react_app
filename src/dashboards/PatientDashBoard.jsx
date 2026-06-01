@@ -3,12 +3,22 @@ import { useAuth } from '../context/AuthContext';
 import { doctorAPI, appointmentAPI, specialtyAPI } from '../services/api';
 import Swal from 'sweetalert2';
 
-// ─── Timezone-safe helper ─────────────────────────────────────────────────────
 const toLocalDateStr = (date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+};
+
+const getSpecialtyName = (doctorProfile) => {
+    return doctorProfile?.specialty_name || 'Specialist';
+};
+
+const getSpecialtyId = (doctorProfile) => {
+    const sp = doctorProfile?.specialty;
+    if (!sp) return null;
+    if (typeof sp === 'object') return Number(sp.id);
+    return Number(sp);
 };
 
 export const PatientDashBoard = () => {
@@ -20,7 +30,6 @@ export const PatientDashBoard = () => {
     const [myAppointments, setMyAppointments] = useState([]);
 
     const [selectedDayForDoc, setSelectedDayForDoc] = useState({});
-    // Track which doctor's slot dropdown is open
     const [openSlotDropdown, setOpenSlotDropdown] = useState(null);
     const dropdownRef = useRef(null);
 
@@ -44,7 +53,6 @@ export const PatientDashBoard = () => {
     const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const todayStr = toLocalDateStr(new Date());
 
-    // Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -84,7 +92,6 @@ export const PatientDashBoard = () => {
             });
             setSelectedDayForDoc(initialDays);
 
-            // Deduplicate appointments
             const unique = Object.values(
                 (appRes.data || []).reduce((acc, app) => { acc[app.id] = app; return acc; }, {})
             );
@@ -198,7 +205,6 @@ export const PatientDashBoard = () => {
         }
     };
 
-    // ✅ Fix 1: use cancelAppointment endpoint (POST) not updateAppointment (PATCH)
     const handleCancelAppointment = async (app) => {
         const result = await Swal.fire({
             title: 'Cancel Appointment?',
@@ -209,7 +215,6 @@ export const PatientDashBoard = () => {
             cancelButtonColor: '#94a3b8',
             confirmButtonText: 'Yes, cancel it',
             cancelButtonText: 'Go Back',
-            customClass: { confirmButton: 'cursor-pointer rounded-xl', cancelButton: 'cursor-pointer rounded-xl' },
         });
         if (!result.isConfirmed) return;
         try {
@@ -217,28 +222,26 @@ export const PatientDashBoard = () => {
             Toast.fire({ icon: 'success', title: 'Appointment cancelled successfully.' });
             loadPatientData();
         } catch (err) {
-            console.error('Error cancelling appointment:', err);
             Toast.fire({ icon: 'error', title: err.response?.data?.error || 'Failed to cancel the appointment.' });
         }
     };
 
-    // ✅ Fix 2: compare specialty as number (API returns number IDs)
     const filteredDoctors = doctors.filter((docItem) => {
         const fullName = `${docItem.first_name} ${docItem.last_name}`.toLowerCase();
         const matchesSearch =
             fullName.includes(searchQuery.toLowerCase()) ||
             (docItem.email || '').toLowerCase().includes(searchQuery.toLowerCase());
         const matchesSpecialty = !selectedSpecialty ||
-            Number(docItem.doctor_profile?.specialty) === Number(selectedSpecialty);
+            getSpecialtyId(docItem.doctor_profile) === Number(selectedSpecialty);
         return matchesSearch && matchesSpecialty;
     });
 
-    // ─── Status helpers ───────────────────────────────────────────────────────
     const statusStyles = {
         Completed: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
         Confirmed: 'bg-sky-50 text-sky-700 border border-sky-100',
         Pending: 'bg-amber-50 text-amber-700 border border-amber-100',
         Cancelled: 'bg-red-50 text-red-600 border border-red-100',
+        Rejected:  'bg-red-50 text-red-600 border border-red-100',
     };
 
     const fmtDate = (ds) => {
@@ -247,7 +250,6 @@ export const PatientDashBoard = () => {
         return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     };
 
-    // ─── Doctor card day strip ────────────────────────────────────────────────
     const DocDayStrip = ({ docItem, uniqueDates, currentSelectedDate }) => (
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
             {uniqueDates.map((dateVal) => {
@@ -279,7 +281,6 @@ export const PatientDashBoard = () => {
         </div>
     );
 
-    // ✅ Fix 3: Slot Dropdown instead of grid of buttons
     const SlotDropdown = ({ docItem, slotsForSelectedDay }) => {
         const isOpen = openSlotDropdown === docItem.id;
         const available = slotsForSelectedDay.length;
@@ -298,14 +299,12 @@ export const PatientDashBoard = () => {
                         }`}
                 >
                     <span className="flex items-center gap-2">
-                        <span className={`text-base ${isOpen ? '' : ''}`}>🕐</span>
+                        <span>🕐</span>
                         {available === 0 ? 'No slots available' : `${available} slot${available > 1 ? 's' : ''} available`}
                     </span>
                     {available > 0 && (
-                        <svg
-                            className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                        >
+                        <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
                     )}
@@ -344,7 +343,7 @@ export const PatientDashBoard = () => {
         <div className="min-h-screen bg-[#f8f9fb] py-10 px-4 sm:px-6 lg:px-8 font-sans text-[#1e293b] antialiased">
             <div className="max-w-6xl mx-auto space-y-8">
 
-                {/* ── Header ── */}
+                {/* Header */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-7 border-b border-slate-200">
                     <div>
                         <h1 className="text-2xl font-bold text-[#0f172a] tracking-tight">Patient Center</h1>
@@ -356,7 +355,7 @@ export const PatientDashBoard = () => {
                     </div>
                 </div>
 
-                {/* ── Tabs ── */}
+                {/* Tabs */}
                 <div className="flex border-b border-slate-200 gap-7">
                     {[
                         { label: 'Book Appointment', icon: '🏥' },
@@ -375,12 +374,9 @@ export const PatientDashBoard = () => {
                     ))}
                 </div>
 
-                {/* ══════════════════════════════════════════════════════════════
-                    TAB 0 — BOOK AN APPOINTMENT
-                ══════════════════════════════════════════════════════════════ */}
+                {/* ── Tab 0: Book Appointment ── */}
                 {activeTab === 0 && (
                     <div className="space-y-6">
-
                         {/* Search & Filter */}
                         <div className="flex flex-col md:flex-row gap-3">
                             <div className="flex-1 relative">
@@ -393,7 +389,6 @@ export const PatientDashBoard = () => {
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                             </div>
-                            {/* ✅ Fix 2: specialty filter uses numeric comparison */}
                             <div className="w-full md:w-60">
                                 <select
                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-slate-300 transition-all text-slate-600 cursor-pointer font-medium"
@@ -429,19 +424,13 @@ export const PatientDashBoard = () => {
                                         .filter((s) => s.date === currentSelectedDate)
                                         .sort((a, b) => (a.start_time || a.time || '').localeCompare(b.start_time || b.time || ''));
 
-                                    // ✅ Fix 4: specialty name lookup
-                                    const specialtyName = specialties.find(
-                                        s => Number(s.id) === Number(docItem.doctor_profile?.specialty)
-                                    )?.name || 'Specialist';
+                                    const specialtyName = getSpecialtyName(docItem.doctor_profile);
                                     const fee = Number(docItem.doctor_profile?.consultation_fee) || 250;
                                     const initials = (docItem.first_name?.charAt(0) || '') + (docItem.last_name?.charAt(0) || '');
 
                                     return (
-                                        <div
-                                            key={docItem.id}
-                                            className="bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col overflow-visible"
-                                        >
-                                            {/* ── Doctor header ── */}
+                                        <div key={docItem.id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col overflow-visible">
+                                            {/* Doctor header */}
                                             <div className="px-5 pt-5 pb-4 border-b border-slate-100">
                                                 <div className="flex items-start gap-4">
                                                     <div className="w-13 h-13 rounded-xl bg-[#0f172a] flex items-center justify-center text-white text-base font-bold shrink-0 select-none" style={{ width: 52, height: 52 }}>
@@ -472,21 +461,17 @@ export const PatientDashBoard = () => {
                                                 </div>
                                             </div>
 
-                                            {/* ── Day strip ── */}
+                                            {/* Day strip */}
                                             <div className="px-5 pt-4 pb-3">
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Select a date</p>
                                                 {uniqueDates.length === 0 ? (
                                                     <p className="text-xs text-slate-400 italic">No available dates.</p>
                                                 ) : (
-                                                    <DocDayStrip
-                                                        docItem={docItem}
-                                                        uniqueDates={uniqueDates}
-                                                        currentSelectedDate={currentSelectedDate}
-                                                    />
+                                                    <DocDayStrip docItem={docItem} uniqueDates={uniqueDates} currentSelectedDate={currentSelectedDate} />
                                                 )}
                                             </div>
 
-                                            {/* ✅ Fix 3: Slot Dropdown instead of slot grid */}
+                                            {/* Slot Dropdown */}
                                             <div className="px-5 pb-5 pt-1 relative">
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Available times</p>
                                                 <SlotDropdown docItem={docItem} slotsForSelectedDay={slotsForSelectedDay} />
@@ -499,9 +484,7 @@ export const PatientDashBoard = () => {
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
-                    TAB 1 — MY BOOKINGS & RECORDS
-                ══════════════════════════════════════════════════════════════ */}
+                {/* ── Tab 1: My Bookings ── */}
                 {activeTab === 1 && (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -523,10 +506,7 @@ export const PatientDashBoard = () => {
                                     const canCancel = app.status === 'Pending' || app.status === 'Confirmed';
 
                                     return (
-                                        <div
-                                            key={app.id}
-                                            className="bg-white border border-slate-200/60 rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm hover:border-slate-300 transition-all"
-                                        >
+                                        <div key={app.id} className="bg-white border border-slate-200/60 rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm hover:border-slate-300 transition-all">
                                             {/* Date block */}
                                             <div className="min-w-[80px] text-center sm:text-left">
                                                 <p className="text-base font-bold text-[#0f172a]">
@@ -535,9 +515,7 @@ export const PatientDashBoard = () => {
                                                 <p className="text-xs text-slate-500 font-medium leading-tight">
                                                     {slotDate ? new Date(slotDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}
                                                 </p>
-                                                {slotTime && (
-                                                    <p className="text-xs font-bold text-[#0f172a] mt-1">{slotTime}</p>
-                                                )}
+                                                {slotTime && <p className="text-xs font-bold text-[#0f172a] mt-1">{slotTime}</p>}
                                             </div>
 
                                             <div className="w-px h-10 bg-slate-100 hidden sm:block" />
@@ -546,22 +524,18 @@ export const PatientDashBoard = () => {
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-bold text-sm text-[#0f172a]">Dr. {app.doctor_name}</p>
                                                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                                    {fmtDate(slotDate)}
-                                                    {slotTime ? ` · ${slotTime}` : ''}
+                                                    {fmtDate(slotDate)}{slotTime ? ` · ${slotTime}` : ''}
                                                 </p>
                                             </div>
 
-                                            {/* Status */}
                                             <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusStyles[app.status] || statusStyles.Pending}`}>
                                                 {app.status}
                                             </span>
 
-                                            {/* Payment */}
                                             <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-50 text-slate-600 border border-slate-200 whitespace-nowrap">
                                                 {app.payment_status} · {app.consultation_fee} EGP
                                             </span>
 
-                                            {/* Actions */}
                                             <div className="flex items-center gap-2 flex-shrink-0">
                                                 {app.prescription ? (
                                                     <button
@@ -591,9 +565,7 @@ export const PatientDashBoard = () => {
                 )}
             </div>
 
-            {/* ══════════════════════════════════════════════════════════════
-                MODAL 1 — MEDICAL PRESCRIPTION
-            ══════════════════════════════════════════════════════════════ */}
+            {/* Prescription Modal */}
             {openModal && selectedRecord && (
                 <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100">
@@ -625,10 +597,7 @@ export const PatientDashBoard = () => {
                             )}
                         </div>
                         <div className="flex justify-end pt-2 border-t border-slate-100">
-                            <button
-                                onClick={() => setOpenModal(false)}
-                                className="px-5 py-2 bg-[#0f172a] text-white font-bold rounded-xl text-xs hover:bg-slate-800 cursor-pointer transition-all shadow-sm"
-                            >
+                            <button onClick={() => setOpenModal(false)} className="px-5 py-2 bg-[#0f172a] text-white font-bold rounded-xl text-xs hover:bg-slate-800 cursor-pointer transition-all shadow-sm">
                                 Close
                             </button>
                         </div>
@@ -636,13 +605,10 @@ export const PatientDashBoard = () => {
                 </div>
             )}
 
-            {/* ══════════════════════════════════════════════════════════════
-                MODAL 2 — DOCTOR PROFILE
-            ══════════════════════════════════════════════════════════════ */}
+            {/* Doctor Profile Modal */}
             {doctorModalOpen && selectedDoctorProfile && (
                 <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100">
-                        {/* ✅ Fix 5: Doctor profile with all available fields */}
                         <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
                             <div className="w-12 h-12 rounded-xl bg-[#0f172a] flex items-center justify-center text-white text-sm font-bold select-none">
                                 {(selectedDoctorProfile.first_name?.charAt(0) || '') + (selectedDoctorProfile.last_name?.charAt(0) || '')}
@@ -652,13 +618,12 @@ export const PatientDashBoard = () => {
                                     Dr. {selectedDoctorProfile.first_name} {selectedDoctorProfile.last_name}
                                 </h3>
                                 <span className="text-xs text-slate-500 font-semibold">
-                                    {specialties.find(s => Number(s.id) === Number(selectedDoctorProfile.doctor_profile?.specialty))?.name || 'Specialist'}
+                                    {getSpecialtyName(selectedDoctorProfile.doctor_profile)}
                                 </span>
                             </div>
                         </div>
 
                         <div className="space-y-4 text-sm">
-                            {/* Info grid */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="bg-[#fafafa] p-3 rounded-xl border border-slate-100 text-center">
                                     <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide mb-1">Consultation Fee</p>
@@ -671,7 +636,6 @@ export const PatientDashBoard = () => {
                                 </div>
                             </div>
 
-                            {/* Clinic address */}
                             {selectedDoctorProfile.doctor_profile?.clinic_address && (
                                 <div>
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">📍 Clinic Address</span>
@@ -681,7 +645,6 @@ export const PatientDashBoard = () => {
                                 </div>
                             )}
 
-                            {/* Bio */}
                             <div>
                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">📋 Biography</span>
                                 <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
@@ -691,10 +654,7 @@ export const PatientDashBoard = () => {
                         </div>
 
                         <div className="flex justify-end pt-2 border-t border-slate-100">
-                            <button
-                                onClick={() => setDoctorModalOpen(false)}
-                                className="px-5 py-2 bg-[#0f172a] text-white font-bold rounded-xl text-xs hover:bg-slate-800 cursor-pointer transition-all shadow-sm"
-                            >
+                            <button onClick={() => setDoctorModalOpen(false)} className="px-5 py-2 bg-[#0f172a] text-white font-bold rounded-xl text-xs hover:bg-slate-800 cursor-pointer transition-all shadow-sm">
                                 Close
                             </button>
                         </div>

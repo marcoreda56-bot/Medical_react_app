@@ -19,16 +19,23 @@ axiosInstance.interceptors.response.use(
     (response) => response,
     async (error) => {
         const original = error.config;
-        if (error.response?.status === 401 && !original._retry) {
+
+        const isAuthEndpoint =
+            original.url.includes('/auth/login/') ||
+            original.url.includes('/auth/refresh/') ||
+            original.url.includes('/auth/verify-otp/');
+
+        if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
             original._retry = true;
             try {
                 const refresh = localStorage.getItem('refresh_token');
+                if (!refresh) throw new Error('No refresh token');
+
                 const res = await axios.post(
                     'http://localhost:8000/api/auth/refresh/',
-                    {
-                        refresh,
-                    }
+                    { refresh }
                 );
+                
                 localStorage.setItem('access_token', res.data.access);
                 original.headers.Authorization = `Bearer ${res.data.access}`;
                 return axiosInstance(original);
@@ -38,6 +45,7 @@ axiosInstance.interceptors.response.use(
                 window.location.href = '/login';
             }
         }
+
         return Promise.reject(error);
     }
 );

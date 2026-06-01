@@ -20,18 +20,18 @@ import axiosInstance from '../api/axios';
 
 const NotificationsPage = () => {
     const { notifications, markAsRead } = useNotifications();
-    const navigate = useNavigate();
+    // const navigate = useNavigate();
 
-    const handleOpen = async (n) => {
-        try {
-            if (!n.read) await markAsRead(n.id);
-            if (n.data?.appointmentId)
-                navigate(`/appointments/${n.data.appointmentId}`);
-            else navigate('/notifications');
-        } catch (err) {
-            console.error(err);
-        }
-    };
+    // const handleOpen = async (n) => {
+    //     try {
+    //         if (!n.read) await markAsRead(n.id);
+    //         if (n.data?.appointmentId)
+    //             navigate(`/appointments/${n.data.appointmentId}`);
+    //         else navigate('/notifications');
+    //     } catch (err) {
+    //         console.error(err);
+    //     }
+    // };
 
     const handleDelete = async (n) => {
         const res = await Swal.fire({

@@ -10,6 +10,18 @@ export const AuthProvider = ({ children }) => {
     const [userName, setUserName] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const applyUser = (user) => {
+        setCurrentUser(user);
+        setUserRole(user.role);
+        setUserStatus(user.is_active ? 'approved' : 'pending');
+        setUserName(user.full_name || user.username);
+    };
+
+    const saveTokens = (access, refresh) => {
+        localStorage.setItem('access_token', access);
+        localStorage.setItem('refresh_token', refresh);
+    };
+
     useEffect(() => {
         const token = localStorage.getItem('access_token');
         if (!token) {
@@ -18,13 +30,7 @@ export const AuthProvider = ({ children }) => {
         }
         axiosInstance
             .get('/users/me/')
-            .then((res) => {
-                const user = res.data;
-                setCurrentUser(user);
-                setUserRole(user.role);
-                setUserStatus(user.is_active ? 'approved' : 'pending');
-                setUserName(user.full_name || user.username);
-            })
+            .then((res) => applyUser(res.data))
             .catch(() => {
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('refresh_token');
@@ -32,17 +38,11 @@ export const AuthProvider = ({ children }) => {
             .finally(() => setLoading(false));
     }, []);
 
-    const register = async (email, password, name, role) => {
+    const register = async ({ email, password, name = '', role, phone = '' }) => {
         const [first_name, ...rest] = name.trim().split(' ');
         const last_name = rest.join(' ');
-        const username = email.split('@')[0] + Math.floor(Math.random() * 1000);
         const res = await axiosInstance.post('/register/', {
-            username,
-            email,
-            password,
-            role,
-            first_name,
-            last_name,
+            email, password, role, phone, first_name, last_name,
         });
         return res.data;
     };
@@ -55,13 +55,12 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('access_token', res.data.access);
         localStorage.setItem('refresh_token', res.data.refresh);
 
+    const loginWithGoogle = async (credential, role = 'patient') => {
+        const res = await axiosInstance.post('/auth/google/', { credential, role });
+        saveTokens(res.data.access, res.data.refresh);
         const meRes = await axiosInstance.get('/users/me/');
-        const user = meRes.data;
-        setCurrentUser(user);
-        setUserRole(user.role);
-        setUserStatus(user.is_active ? 'approved' : 'pending');
-        setUserName(user.full_name || user.username);
-        return user;
+        applyUser(meRes.data);
+        return meRes.data;
     };
 
     const logout = () => {
@@ -73,19 +72,11 @@ export const AuthProvider = ({ children }) => {
         setUserName(null);
     };
 
-    const value = {
-        currentUser,
-        userRole,
-        userStatus,
-        userName,
-        loading,
-        register,
-        login,
-        logout,
-    };
-
     return (
-        <AuthContext.Provider value={value}>
+        <AuthContext.Provider value={{
+            currentUser, userRole, userStatus, userName, loading,
+            register, login, loginWithGoogle, logout,
+        }}>
             {!loading && children}
         </AuthContext.Provider>
     );

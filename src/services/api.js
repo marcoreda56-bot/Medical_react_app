@@ -12,7 +12,10 @@ export const authAPI = {
 
 export const doctorAPI = {
     getApprovedDoctors: () => axiosInstance.get('/doctors/'),
-    getAvailableSlots: () => axiosInstance.get('/slots/available/'),
+    getAvailableSlots: (doctorId) =>
+        axiosInstance.get('/slots/available/', {
+            params: doctorId ? { doctor_id: doctorId } : {},
+        }),
     getMySlots: () => axiosInstance.get('/slots/'),
     addSlot: (slotData) => axiosInstance.post('/slots/', slotData),
     deleteSlot: (slotId) => axiosInstance.delete(`/slots/${slotId}/`),
@@ -20,11 +23,19 @@ export const doctorAPI = {
 
 export const appointmentAPI = {
     getMyAppointments: () => axiosInstance.get('/appointments/'),
+    getUpcoming: () => axiosInstance.get('/appointments/upcoming/'),
+    getPast: () => axiosInstance.get('/appointments/past/'),
     book: (data) => axiosInstance.post('/appointments/book/', data),
-    approveAppointment: (id) =>
-        axiosInstance.post(`/appointments/${id}/approve/`),
-    cancelAppointment: (id, reason) =>
+    
+    approveAppointment: (id, doctorNotes = '') =>
+        axiosInstance.post(`/appointments/${id}/approve/`, { doctor_notes: doctorNotes }),
+    
+    rejectAppointment: (id, doctorNotes = '') =>
+        axiosInstance.post(`/appointments/${id}/reject/`, { doctor_notes: doctorNotes }),
+    
+    cancelAppointment: (id, reason = '') =>
         axiosInstance.post(`/appointments/${id}/cancel/`, { reason }),
+    
     completeAppointment: (id, data) =>
         axiosInstance.post(`/appointments/${id}/complete/`, data),
 };
@@ -35,9 +46,7 @@ export const specialtyAPI = {
 
 export const profileAPI = {
     getDoctorProfile: () => axiosInstance.get('/doctor-profiles/me/'),
-    saveDoctorProfile: (data) =>
-        axiosInstance.patch('/doctor-profiles/me/', data),
+    saveDoctorProfile: (data) => axiosInstance.patch('/doctor-profiles/me/', data),
     getPatientProfile: () => axiosInstance.get('/patient-profiles/me/'),
-    savePatientProfile: (data) =>
-        axiosInstance.patch('/patient-profiles/me/', data),
+    savePatientProfile: (data) => axiosInstance.patch('/patient-profiles/me/', data),
 };
