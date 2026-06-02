@@ -46,7 +46,6 @@ export const AuthProvider = ({ children }) => {
         });
         return res.data;
     };
-
     const login = async (email, password) => {
         const res = await axiosInstance.post('/auth/login/', {
             email,
@@ -54,6 +53,11 @@ export const AuthProvider = ({ children }) => {
         });
         localStorage.setItem('access_token', res.data.access);
         localStorage.setItem('refresh_token', res.data.refresh);
+        
+        const meRes = await axiosInstance.get('/users/me/');
+        applyUser(meRes.data);
+        return meRes.data;  
+    };
 
     const loginWithGoogle = async (credential, role = 'patient') => {
         const res = await axiosInstance.post('/auth/google/', { credential, role });
