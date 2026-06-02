@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useLanguage } from '../context/LanguageContext';
 import api, { specialtyAPI, profileAPI, userAPI } from '../services/api';
-import { ArrowLeft, Save, ShieldAlert, User, Mail, Calendar, MapPin, Stethoscope, DollarSign, Info, Activity } from 'lucide-react';
+import { ArrowLeft, Save, User, Mail, Calendar, MapPin, Stethoscope, DollarSign, Activity } from 'lucide-react';
 
 export const Profile = () => {
     const navigate = useNavigate();

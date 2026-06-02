@@ -1,6 +1,4 @@
-import { Box, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Typography, Paper } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import { Edit2, Trash2, Plus } from 'lucide-react';
 
 export const SpecialtiesPanel = ({
   specialties,
@@ -13,67 +11,87 @@ export const SpecialtiesPanel = ({
   onDelete,
 }) => {
   return (
-    <Paper elevation={3} sx={{ p: 3, borderRadius: 3 }}>
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-        Specialties Management
-      </Typography>
-      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
-        <TextField
-          label="Specialty"
-          value={specialtyForm.name}
-          onChange={(e) => onSpecialtyChange((prev) => ({ ...prev, name: e.target.value }))}
-          sx={{ minWidth: 240 }}
-        />
-        <TextField
-          label="Description"
-          value={specialtyForm.description}
-          onChange={(e) => onSpecialtyChange((prev) => ({ ...prev, description: e.target.value }))}
-          sx={{ minWidth: 360 }}
-        />
-        <Button variant="contained" startIcon={<EditIcon />} onClick={onSubmit}>
-          {editingSpecialty ? 'Save Specialty' : 'Add Specialty'}
-        </Button>
-        {editingSpecialty && (
-          <Button variant="outlined" color="secondary" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
-      </Box>
-      <TableContainer>
-        <Table>
-          <TableHead sx={{ bgcolor: '#f3e5f5' }}>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-slate-800 mb-4">Medical Specialties Management</h3>
+        
+        {/* Input Form Fields Box */}
+        <div className="flex flex-col sm:flex-row gap-3 items-end bg-slate-50/50 p-4 border border-slate-100 rounded-xl">
+          <div className="w-full sm:max-w-xs flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-500">Specialty Name</label>
+            <input
+              type="text"
+              value={specialtyForm.name}
+              onChange={(e) => onSpecialtyChange((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="e.g. Cardiology"
+              className="w-full px-3 py-2 text-sm border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0">
+            <button
+              onClick={onSubmit}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors shadow-sm whitespace-nowrap"
+            >
+              <Plus size={16} />
+              <span>{editingSpecialty ? 'Save Specialty' : 'Add Specialty'}</span>
+            </button>
+            {editingSpecialty && (
+              <button
+                onClick={onCancel}
+                className="w-full sm:w-auto bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Specialties List Data Table */}
+      <div className="overflow-x-auto border border-slate-100 rounded-xl">
+        <table className="w-full text-sm text-left text-slate-600 border-collapse">
+          <thead className="text-xs font-semibold text-slate-700 bg-purple-50/60 uppercase border-b border-slate-100">
+            <tr>
+              <th className="px-6 py-4">Name</th>
+              <th className="px-6 py-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
             {specialties.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+              <tr>
+                <td colSpan={3} className="px-6 py-10 text-center text-slate-400 font-medium">
                   No specialties configured yet.
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ) : (
               specialties.map((specialty) => (
-                <TableRow key={specialty.id} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
-                  <TableCell>{specialty.name}</TableCell>
-                  <TableCell>{specialty.description || '—'}</TableCell>
-                  <TableCell>
-                    <IconButton onClick={() => onEdit(specialty)} size="small" color="primary">
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton onClick={() => onDelete(specialty.id)} size="small" color="error">
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
+                <tr key={specialty.id} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="px-6 py-4 font-bold text-slate-900">{specialty.name}</td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        onClick={() => onEdit(specialty)}
+                        className="p-1.5 rounded-md border border-slate-100 bg-white text-blue-600 hover:bg-blue-50 hover:border-blue-100 transition-colors"
+                        title="Edit Specialty"
+                      >
+                        <Edit2 size={15} />
+                      </button>
+                      <button
+                        onClick={() => onDelete(specialty.id)}
+                        className="p-1.5 rounded-md border border-slate-100 bg-white text-rose-600 hover:bg-rose-50 hover:border-rose-100 transition-colors"
+                        title="Delete Specialty"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               ))
             )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Paper>
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 };

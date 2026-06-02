@@ -418,6 +418,7 @@ export const PatientDashBoard = () => {
         );
     };
 
+    // ✅ FIX: الفلتر بيستخدم specialty_id من docItem مباشرة (flat field)
     const filteredDoctors = doctors.filter((docItem) => {
         const fullName =
             `${docItem.first_name} ${docItem.last_name}`.toLowerCase();
@@ -735,6 +736,7 @@ export const PatientDashBoard = () => {
                                                 )
                                             );
 
+                                        // ✅ FIX: specialty_name و consultation_fee جايين flat من docItem
                                         const specialtyName = getSpecialtyName(docItem);
                                         const fee = Number(docItem.consultation_fee) || 250;
                                         const initials =
@@ -1141,7 +1143,6 @@ export const PatientDashBoard = () => {
                                 </div>
                             </div>
 
-                            {/* ✅ FIX: clinic_address flat من selectedDoctorProfile مباشرة */}
                             {selectedDoctorProfile.clinic_address && (
                                 <div>
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
@@ -1157,6 +1158,7 @@ export const PatientDashBoard = () => {
                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
                                     📋 Biography
                                 </span>
+                                {/* ✅ FIX: bio flat من selectedDoctorProfile مباشرة */}
                                 <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
                                     {selectedDoctorProfile.bio ||
                                         'No biography provided by the doctor.'}
