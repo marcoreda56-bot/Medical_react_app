@@ -138,7 +138,6 @@ function AppContent() {
                     }
                 />
 
-                {/* Home & Fallback Redirection */}
                 <Route path="/" element={<Landing />} />
                 <Route path="/home" element={<Home />} />
                 <Route path="*" element={<Navigate to={'/'} replace />} />
