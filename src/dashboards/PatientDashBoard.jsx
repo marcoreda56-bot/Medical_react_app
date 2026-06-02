@@ -22,7 +22,8 @@ const asArray = (data) => {
 const normalizeStatus = (status) => {
     const value = String(status || 'Pending').toLowerCase();
     if (value === 'confirmed' || value === 'approved') return 'Confirmed';
-    if (value === 'cancelled' || value === 'canceled' || value === 'rejected') return 'Cancelled';
+    if (value === 'cancelled' || value === 'canceled' || value === 'rejected')
+        return 'Cancelled';
     if (value === 'completed') return 'Completed';
     return 'Pending';
 };
@@ -30,14 +31,16 @@ const normalizeStatus = (status) => {
 const buildSlotTime = (slot) => {
     if (!slot) return '';
     if (slot.time) return slot.time;
-    if (slot.start_time && slot.end_time) return `${slot.start_time} - ${slot.end_time}`;
+    if (slot.start_time && slot.end_time)
+        return `${slot.start_time} - ${slot.end_time}`;
     return slot.start_time || '';
 };
 
 const getSlotDetails = (appointment) => {
     const slot = appointment.slot_details || appointment.slot || {};
     return {
-        date: slot.date || appointment.date || appointment.appointment_date || '',
+        date:
+            slot.date || appointment.date || appointment.appointment_date || '',
         time: buildSlotTime(slot) || appointment.time || '',
     };
 };
@@ -283,10 +286,12 @@ export const PatientDashBoard = () => {
             setSelectedDayForDoc(initialDays);
 
             const unique = Object.values(
-                asArray(appRes.data).map(normalizeAppointment).reduce((acc, app) => {
-                    acc[app.id] = app;
-                    return acc;
-                }, {})
+                asArray(appRes.data)
+                    .map(normalizeAppointment)
+                    .reduce((acc, app) => {
+                        acc[app.id] = app;
+                        return acc;
+                    }, {})
             );
             setMyAppointments(unique);
         } catch (err) {
@@ -1222,6 +1227,7 @@ export const PatientDashBoard = () => {
                                         'No biography provided by the doctor.'}
                                 </p>
                             </div>
+                            {/* just a comment lol */}
 
                             <div className="border-t border-slate-100 pt-4">
                                 <DoctorReviews
