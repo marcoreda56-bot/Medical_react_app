@@ -57,7 +57,6 @@ export const AuthProvider = ({ children }) => {
         });
         return res.data;
     };
-
     const login = async (email, password) => {
         const res = await axiosInstance.post('/auth/login/', {
             email,
