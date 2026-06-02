@@ -66,6 +66,15 @@ export const Navbar = () => {
                     </div>
 
                     <div className="flex items-center gap-4">
+                        {userRole === 'doctor' && (
+                            <button
+                                onClick={() => navigate('/doctor')}
+                                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-semibold transition-all"
+                            >
+                                Dashboard
+                            </button>
+                        )}
+
                         <span className="text-sm font-medium hidden sm:block">
                             Hi,{' '}
                             <strong className="text-teal-100">
