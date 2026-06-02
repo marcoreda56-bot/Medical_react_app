@@ -13,15 +13,14 @@ const toLocalDateStr = (date) => {
     return `${y}-${m}-${d}`;
 };
 
-const getSpecialtyName = (doctorProfile) => {
-    return doctorProfile?.specialty_name || 'Specialist';
+// ✅ FIX: الدالتين دول بقوا بيشتغلوا على الـ flat fields مباشرة من الـ API
+// مش محتاجين doctor_profile nested object تاني
+const getSpecialtyName = (docItem) => {
+    return docItem?.specialty_name || 'Specialist';
 };
 
-const getSpecialtyId = (doctorProfile) => {
-    const sp = doctorProfile?.specialty;
-    if (!sp) return null;
-    if (typeof sp === 'object') return Number(sp.id);
-    return Number(sp);
+const getSpecialtyId = (docItem) => {
+    return docItem?.specialty_id ? Number(docItem.specialty_id) : null;
 };
 
 // ── Reusable Pagination Component ──
@@ -264,7 +263,8 @@ export const PatientDashBoard = () => {
     const handleBookSlot = async (doctor, slot) => {
         const doctorName =
             `${doctor.first_name} ${doctor.last_name}`.trim() || 'Doctor';
-        const amount = Number(doctor.doctor_profile?.consultation_fee) || 250;
+        // ✅ FIX: consultation_fee بقى flat على docItem مباشرة
+        const amount = Number(doctor.consultation_fee) || 250;
         const dayLabel = slot.date;
         const displayTime =
             slot.start_time || slot.time?.split(' - ')[0] || slot.time;
@@ -422,6 +422,7 @@ export const PatientDashBoard = () => {
         );
     };
 
+    // ✅ FIX: الفلتر بيستخدم specialty_id من docItem مباشرة (flat field)
     const filteredDoctors = doctors.filter((docItem) => {
         const fullName =
             `${docItem.first_name} ${docItem.last_name}`.toLowerCase();
@@ -432,8 +433,7 @@ export const PatientDashBoard = () => {
                 .includes(searchQuery.toLowerCase());
         const matchesSpecialty =
             !selectedSpecialty ||
-            getSpecialtyId(docItem.doctor_profile) ===
-                Number(selectedSpecialty);
+            getSpecialtyId(docItem) === Number(selectedSpecialty);
         return matchesSearch && matchesSpecialty;
     });
 
@@ -673,9 +673,10 @@ export const PatientDashBoard = () => {
                                 <select
                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-slate-300 transition-all text-slate-600 cursor-pointer font-medium"
                                     value={selectedSpecialty}
-                                    onChange={(e) =>
-                                        setSelectedSpecialty(e.target.value)
-                                    }
+                                    onChange={(e) => {
+                                        setSelectedSpecialty(e.target.value);
+                                        setDoctorsPage(1); // ✅ reset pagination on filter change
+                                    }}
                                 >
                                     <option value="">All Specialties</option>
                                     {specialties.map((spec) => (
@@ -739,14 +740,9 @@ export const PatientDashBoard = () => {
                                                 )
                                             );
 
-                                        const specialtyName = getSpecialtyName(
-                                            docItem.doctor_profile
-                                        );
-                                        const fee =
-                                            Number(
-                                                docItem.doctor_profile
-                                                    ?.consultation_fee
-                                            ) || 250;
+                                        // ✅ FIX: specialty_name و consultation_fee جايين flat من docItem
+                                        const specialtyName = getSpecialtyName(docItem);
+                                        const fee = Number(docItem.consultation_fee) || 250;
                                         const initials =
                                             (docItem.first_name?.charAt(0) ||
                                                 '') +
@@ -782,6 +778,7 @@ export const PatientDashBoard = () => {
                                                                             docItem.last_name
                                                                         }
                                                                     </h3>
+                                                                    {/* ✅ FIX: specialtyName بيجي صح دلوقتي */}
                                                                     <span className="inline-block text-[11px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-lg mt-1">
                                                                         {
                                                                             specialtyName
@@ -1119,10 +1116,9 @@ export const PatientDashBoard = () => {
                                     Dr. {selectedDoctorProfile.first_name}{' '}
                                     {selectedDoctorProfile.last_name}
                                 </h3>
+                                {/* ✅ FIX: specialty_name flat من selectedDoctorProfile مباشرة */}
                                 <span className="text-xs text-slate-500 font-semibold">
-                                    {getSpecialtyName(
-                                        selectedDoctorProfile.doctor_profile
-                                    )}
+                                    {selectedDoctorProfile.specialty_name || 'Specialist'}
                                 </span>
                             </div>
                         </div>
@@ -1133,11 +1129,9 @@ export const PatientDashBoard = () => {
                                     <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide mb-1">
                                         Consultation Fee
                                     </p>
+                                    {/* ✅ FIX: consultation_fee flat من selectedDoctorProfile مباشرة */}
                                     <p className="text-lg font-bold text-[#0f172a]">
-                                        {Number(
-                                            selectedDoctorProfile.doctor_profile
-                                                ?.consultation_fee
-                                        ) || 250}
+                                        {Number(selectedDoctorProfile.consultation_fee) || 250}
                                     </p>
                                     <p className="text-[11px] text-slate-500 font-medium">
                                         EGP / session
@@ -1155,17 +1149,14 @@ export const PatientDashBoard = () => {
                                 </div>
                             </div>
 
-                            {selectedDoctorProfile.doctor_profile
-                                ?.clinic_address && (
+                            {/* ✅ FIX: clinic_address flat من selectedDoctorProfile مباشرة */}
+                            {selectedDoctorProfile.clinic_address && (
                                 <div>
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
                                         📍 Clinic Address
                                     </span>
                                     <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
-                                        {
-                                            selectedDoctorProfile.doctor_profile
-                                                .clinic_address
-                                        }
+                                        {selectedDoctorProfile.clinic_address}
                                     </p>
                                 </div>
                             )}
@@ -1174,9 +1165,9 @@ export const PatientDashBoard = () => {
                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
                                     📋 Biography
                                 </span>
+                                {/* ✅ FIX: bio flat من selectedDoctorProfile مباشرة */}
                                 <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
-                                    {selectedDoctorProfile.doctor_profile
-                                        ?.bio ||
+                                    {selectedDoctorProfile.bio ||
                                         'No biography provided by the doctor.'}
                                 </p>
                             </div>
