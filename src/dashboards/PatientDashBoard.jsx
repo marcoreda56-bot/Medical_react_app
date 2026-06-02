@@ -24,6 +24,122 @@ const getSpecialtyId = (doctorProfile) => {
     return Number(sp);
 };
 
+// ── Reusable Pagination Component ──
+const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+    if (totalPages <= 1) return null;
+
+    const maxPagesToShow = 5;
+    let start = Math.max(
+        1,
+        Math.min(currentPage - 2, totalPages - (maxPagesToShow - 1))
+    );
+    const pages = [];
+    for (let i = 0; i < Math.min(maxPagesToShow, totalPages); i++) {
+        pages.push(start + i);
+    }
+
+    return (
+        <div className="flex items-center justify-center gap-1.5 pt-4">
+            {/* First */}
+            <button
+                onClick={() => onPageChange(1)}
+                disabled={currentPage === 1}
+                title="First page"
+                className={`w-8 h-8 flex items-center justify-center rounded-lg border text-xs font-bold transition-all
+                    ${
+                        currentPage === 1
+                            ? 'bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed'
+                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 cursor-pointer'
+                    }`}
+            >
+                «
+            </button>
+
+            {/* Prev */}
+            <button
+                onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                title="Previous page"
+                className={`w-8 h-8 flex items-center justify-center rounded-lg border text-xs font-bold transition-all
+                    ${
+                        currentPage === 1
+                            ? 'bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed'
+                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 cursor-pointer'
+                    }`}
+            >
+                ‹
+            </button>
+
+            {/* Left ellipsis */}
+            {start > 1 && (
+                <span className="w-8 h-8 flex items-center justify-center text-slate-400 text-xs font-semibold">
+                    …
+                </span>
+            )}
+
+            {/* Page numbers */}
+            {pages.map((p) => (
+                <button
+                    key={p}
+                    onClick={() => onPageChange(p)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg border text-xs font-bold transition-all cursor-pointer
+                        ${
+                            currentPage === p
+                                ? 'bg-[#0f172a] border-[#0f172a] text-white shadow-sm'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                        }`}
+                >
+                    {p}
+                </button>
+            ))}
+
+            {/* Right ellipsis */}
+            {start + pages.length - 1 < totalPages && (
+                <span className="w-8 h-8 flex items-center justify-center text-slate-400 text-xs font-semibold">
+                    …
+                </span>
+            )}
+
+            {/* Next */}
+            <button
+                onClick={() =>
+                    onPageChange(Math.min(totalPages, currentPage + 1))
+                }
+                disabled={currentPage === totalPages}
+                title="Next page"
+                className={`w-8 h-8 flex items-center justify-center rounded-lg border text-xs font-bold transition-all
+                    ${
+                        currentPage === totalPages
+                            ? 'bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed'
+                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 cursor-pointer'
+                    }`}
+            >
+                ›
+            </button>
+
+            {/* Last */}
+            <button
+                onClick={() => onPageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                title="Last page"
+                className={`w-8 h-8 flex items-center justify-center rounded-lg border text-xs font-bold transition-all
+                    ${
+                        currentPage === totalPages
+                            ? 'bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed'
+                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 cursor-pointer'
+                    }`}
+            >
+                »
+            </button>
+
+            {/* Page info */}
+            <span className="ml-2 text-xs text-slate-400 font-medium select-none">
+                {currentPage} / {totalPages}
+            </span>
+        </div>
+    );
+};
+
 export const PatientDashBoard = () => {
     const { currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState(0);
@@ -46,12 +162,14 @@ export const PatientDashBoard = () => {
     const [specialties, setSpecialties] = useState([]);
 
     const [reviewModalOpen, setReviewModalOpen] = useState(false);
-    const [reviewTarget, setReviewTarget] = useState(null); // appointment being reviewed
-    // Set of appointment IDs that the patient has already reviewed
+    const [reviewTarget, setReviewTarget] = useState(null);
     const [reviewedIds, setReviewedIds] = useState(new Set());
-    // Pagination for bookings
+
     const [bookingsPage, setBookingsPage] = useState(1);
     const BOOKINGS_PER_PAGE = 5;
+
+    const [doctorsPage, setDoctorsPage] = useState(1);
+    const DOCTORS_PER_PAGE = 4;
 
     const Toast = Swal.mixin({
         toast: true,
@@ -78,8 +196,6 @@ export const PatientDashBoard = () => {
             document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Fetch the patient's existing reviews so we can hide the "Rate" button
-    // for appointments already reviewed.
     const loadMyReviews = async () => {
         try {
             const res = await axiosInstance.get('/reviews/my/');
@@ -88,7 +204,7 @@ export const PatientDashBoard = () => {
             );
             setReviewedIds(ids);
         } catch {
-            // Silently ignore — the button just won't be hidden if this fails.
+            // Silently ignore
         }
     };
 
@@ -161,7 +277,6 @@ export const PatientDashBoard = () => {
                         <p style="margin: 0; color: #1e293b;"><strong>Doctor:</strong> Dr. ${doctorName}</p>
                         <p style="margin: 0; color: #1e293b;"><strong>Appointment:</strong> ${dayLabel} at ${displayTime}</p>
                     </div>
-
                     <div style="background-color: #f8fafc; padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
                         <p style="font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">Fee Breakdown:</p>
                         <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
@@ -181,10 +296,7 @@ export const PatientDashBoard = () => {
                             <span style="color: #0f172a; font-size: 15px;">${amount.toFixed(2)} EGP</span>
                         </div>
                     </div>
-                    
-
                     <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
-
                     <div style="display: flex; flex-direction: column; gap: 8px;">
                         <div>
                             <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Cardholder Name</label>
@@ -205,7 +317,6 @@ export const PatientDashBoard = () => {
                             </div>
                         </div>
                     </div>
-
                     <p style="font-size: 11px; color: #64748b; margin-top: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
                         <span>💡</span> Test details are pre-filled for offline mock payment validation.
                     </p>
@@ -326,6 +437,32 @@ export const PatientDashBoard = () => {
         return matchesSearch && matchesSpecialty;
     });
 
+    // Doctors pagination
+    const totalDoctors = filteredDoctors.length;
+    const totalDoctorPages = Math.max(
+        1,
+        Math.ceil(totalDoctors / DOCTORS_PER_PAGE)
+    );
+    const doctorsStart = (doctorsPage - 1) * DOCTORS_PER_PAGE;
+    const paginatedDoctors = filteredDoctors.slice(
+        doctorsStart,
+        doctorsStart + DOCTORS_PER_PAGE
+    );
+    const showDoctorsPagination = totalDoctors > DOCTORS_PER_PAGE;
+
+    // Bookings pagination
+    const totalBookings = myAppointments.length;
+    const totalBookingPages = Math.max(
+        1,
+        Math.ceil(totalBookings / BOOKINGS_PER_PAGE)
+    );
+    const bookingsStart = (bookingsPage - 1) * BOOKINGS_PER_PAGE;
+    const paginatedAppointments = myAppointments.slice(
+        bookingsStart,
+        bookingsStart + BOOKINGS_PER_PAGE
+    );
+    const showBookingsPagination = totalBookings > BOOKINGS_PER_PAGE;
+
     const statusStyles = {
         Completed: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
         Confirmed: 'bg-sky-50 text-sky-700 border border-sky-100',
@@ -369,9 +506,7 @@ export const PatientDashBoard = () => {
                                     : 'bg-[#f8f9fb] border-slate-200 hover:border-slate-300 hover:bg-slate-100'
                             }`}
                     >
-                        <span
-                            className={`text-[10px] font-semibold tracking-wide ${isActive ? 'text-slate-400' : 'text-slate-400'}`}
-                        >
+                        <span className="text-[10px] font-semibold tracking-wide text-slate-400">
                             {isToday ? 'Today' : DAY_ABBR[d.getDay()]}
                         </span>
                         <span
@@ -379,9 +514,7 @@ export const PatientDashBoard = () => {
                         >
                             {d.getDate()}
                         </span>
-                        <span
-                            className={`text-[10px] ${isActive ? 'text-slate-400' : 'text-slate-400'}`}
-                        >
+                        <span className="text-[10px] text-slate-400">
                             {d.toLocaleDateString('en-US', { month: 'short' })}
                         </span>
                     </button>
@@ -478,23 +611,6 @@ export const PatientDashBoard = () => {
         );
     };
 
-    // Pagination for bookings
-    const totalBookings = myAppointments.length;
-    const totalBookingPages = Math.max(
-        1,
-        Math.ceil(totalBookings / BOOKINGS_PER_PAGE)
-    );
-    const bookingsStart = (bookingsPage - 1) * BOOKINGS_PER_PAGE;
-    const bookingsEnd = bookingsStart + BOOKINGS_PER_PAGE;
-    const paginatedAppointments = myAppointments.slice(
-        bookingsStart,
-        bookingsEnd
-    );
-    const showBookingsPagination =
-        totalBookingPages > 1 &&
-        myAppointments.length > BOOKINGS_PER_PAGE &&
-        filteredDoctors.length > 3;
-
     return (
         <div className="min-h-screen bg-[#f8f9fb] py-10 px-4 sm:px-6 lg:px-8 font-sans text-[#1e293b] antialiased">
             <div className="max-w-6xl mx-auto space-y-8">
@@ -579,157 +695,180 @@ export const PatientDashBoard = () => {
                                 </p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                {filteredDoctors.map((docItem) => {
-                                    const doctorSlots = allSlots.filter((s) => {
-                                        const sDocId =
-                                            s.doctor &&
-                                            typeof s.doctor === 'object'
-                                                ? Number(s.doctor.id)
-                                                : Number(
-                                                      s.doctor || s.doctor_id
-                                                  );
-                                        return sDocId === Number(docItem.id);
-                                    });
-
-                                    const uniqueDates = [
-                                        ...new Set(
-                                            doctorSlots.map((s) => s.date)
-                                        ),
-                                    ].sort();
-                                    const currentSelectedDate =
-                                        selectedDayForDoc[docItem.id] ||
-                                        uniqueDates[0];
-                                    const slotsForSelectedDay = doctorSlots
-                                        .filter(
-                                            (s) =>
-                                                s.date === currentSelectedDate
-                                        )
-                                        .sort((a, b) =>
-                                            (
-                                                a.start_time ||
-                                                a.time ||
-                                                ''
-                                            ).localeCompare(
-                                                b.start_time || b.time || ''
-                                            )
+                            <>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                                    {paginatedDoctors.map((docItem) => {
+                                        const doctorSlots = allSlots.filter(
+                                            (s) => {
+                                                const sDocId =
+                                                    s.doctor &&
+                                                    typeof s.doctor === 'object'
+                                                        ? Number(s.doctor.id)
+                                                        : Number(
+                                                              s.doctor ||
+                                                                  s.doctor_id
+                                                          );
+                                                return (
+                                                    sDocId ===
+                                                    Number(docItem.id)
+                                                );
+                                            }
                                         );
 
-                                    const specialtyName = getSpecialtyName(
-                                        docItem.doctor_profile
-                                    );
-                                    const fee =
-                                        Number(
-                                            docItem.doctor_profile
-                                                ?.consultation_fee
-                                        ) || 250;
-                                    const initials =
-                                        (docItem.first_name?.charAt(0) || '') +
-                                        (docItem.last_name?.charAt(0) || '');
+                                        const uniqueDates = [
+                                            ...new Set(
+                                                doctorSlots.map((s) => s.date)
+                                            ),
+                                        ].sort();
+                                        const currentSelectedDate =
+                                            selectedDayForDoc[docItem.id] ||
+                                            uniqueDates[0];
+                                        const slotsForSelectedDay = doctorSlots
+                                            .filter(
+                                                (s) =>
+                                                    s.date ===
+                                                    currentSelectedDate
+                                            )
+                                            .sort((a, b) =>
+                                                (
+                                                    a.start_time ||
+                                                    a.time ||
+                                                    ''
+                                                ).localeCompare(
+                                                    b.start_time || b.time || ''
+                                                )
+                                            );
 
-                                    return (
-                                        <div
-                                            key={docItem.id}
-                                            className="bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col overflow-visible"
-                                        >
-                                            {/* Doctor header */}
-                                            <div className="px-5 pt-5 pb-4 border-b border-slate-100">
-                                                <div className="flex items-start gap-4">
-                                                    <div
-                                                        className="w-13 h-13 rounded-xl bg-[#0f172a] flex items-center justify-center text-white text-base font-bold shrink-0 select-none"
-                                                        style={{
-                                                            width: 52,
-                                                            height: 52,
-                                                        }}
-                                                    >
-                                                        {initials.toUpperCase()}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-start justify-between gap-2">
-                                                            <div>
-                                                                <h3 className="text-sm font-bold text-[#0f172a] leading-tight">
-                                                                    Dr.{' '}
-                                                                    {
-                                                                        docItem.first_name
-                                                                    }{' '}
-                                                                    {
-                                                                        docItem.last_name
-                                                                    }
-                                                                </h3>
-                                                                <span className="inline-block text-[11px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-lg mt-1">
-                                                                    {
-                                                                        specialtyName
-                                                                    }
-                                                                </span>
-                                                            </div>
-                                                            <div className="text-right shrink-0">
-                                                                <p className="text-base font-bold text-[#0f172a]">
-                                                                    {fee}{' '}
-                                                                    <span className="text-xs font-normal text-slate-400">
-                                                                        EGP
-                                                                    </span>
-                                                                </p>
-                                                                <p className="text-[10px] text-slate-500 font-medium mt-0.5">
-                                                                    per session
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedDoctorProfile(
-                                                                    docItem
-                                                                );
-                                                                setDoctorModalOpen(
-                                                                    true
-                                                                );
+                                        const specialtyName = getSpecialtyName(
+                                            docItem.doctor_profile
+                                        );
+                                        const fee =
+                                            Number(
+                                                docItem.doctor_profile
+                                                    ?.consultation_fee
+                                            ) || 250;
+                                        const initials =
+                                            (docItem.first_name?.charAt(0) ||
+                                                '') +
+                                            (docItem.last_name?.charAt(0) ||
+                                                '');
+
+                                        return (
+                                            <div
+                                                key={docItem.id}
+                                                className="bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col overflow-visible"
+                                            >
+                                                {/* Doctor header */}
+                                                <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+                                                    <div className="flex items-start gap-4">
+                                                        <div
+                                                            className="rounded-xl bg-[#0f172a] flex items-center justify-center text-white text-base font-bold shrink-0 select-none"
+                                                            style={{
+                                                                width: 52,
+                                                                height: 52,
                                                             }}
-                                                            className="text-[11px] text-slate-400 hover:text-[#0f172a] font-semibold mt-2 inline-flex items-center gap-1 transition-all cursor-pointer"
                                                         >
-                                                            <span>ℹ️</span> View
-                                                            profile & reviews
-                                                        </button>
+                                                            {initials.toUpperCase()}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-start justify-between gap-2">
+                                                                <div>
+                                                                    <h3 className="text-sm font-bold text-[#0f172a] leading-tight">
+                                                                        Dr.{' '}
+                                                                        {
+                                                                            docItem.first_name
+                                                                        }{' '}
+                                                                        {
+                                                                            docItem.last_name
+                                                                        }
+                                                                    </h3>
+                                                                    <span className="inline-block text-[11px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-lg mt-1">
+                                                                        {
+                                                                            specialtyName
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-right shrink-0">
+                                                                    <p className="text-base font-bold text-[#0f172a]">
+                                                                        {fee}{' '}
+                                                                        <span className="text-xs font-normal text-slate-400">
+                                                                            EGP
+                                                                        </span>
+                                                                    </p>
+                                                                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                                                        per
+                                                                        session
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedDoctorProfile(
+                                                                        docItem
+                                                                    );
+                                                                    setDoctorModalOpen(
+                                                                        true
+                                                                    );
+                                                                }}
+                                                                className="text-[11px] text-slate-400 hover:text-[#0f172a] font-semibold mt-2 inline-flex items-center gap-1 transition-all cursor-pointer"
+                                                            >
+                                                                <span>ℹ️</span>{' '}
+                                                                View profile &
+                                                                reviews
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Day strip */}
-                                            <div className="px-5 pt-4 pb-3">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                                                    Select a date
-                                                </p>
-                                                {uniqueDates.length === 0 ? (
-                                                    <p className="text-xs text-slate-400 italic">
-                                                        No available dates.
+                                                {/* Day strip */}
+                                                <div className="px-5 pt-4 pb-3">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                                                        Select a date
                                                     </p>
-                                                ) : (
-                                                    <DocDayStrip
+                                                    {uniqueDates.length ===
+                                                    0 ? (
+                                                        <p className="text-xs text-slate-400 italic">
+                                                            No available dates.
+                                                        </p>
+                                                    ) : (
+                                                        <DocDayStrip
+                                                            docItem={docItem}
+                                                            uniqueDates={
+                                                                uniqueDates
+                                                            }
+                                                            currentSelectedDate={
+                                                                currentSelectedDate
+                                                            }
+                                                        />
+                                                    )}
+                                                </div>
+
+                                                {/* Slot Dropdown */}
+                                                <div className="px-5 pb-5 pt-1 relative">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                                                        Available times
+                                                    </p>
+                                                    <SlotDropdown
                                                         docItem={docItem}
-                                                        uniqueDates={
-                                                            uniqueDates
-                                                        }
-                                                        currentSelectedDate={
-                                                            currentSelectedDate
+                                                        slotsForSelectedDay={
+                                                            slotsForSelectedDay
                                                         }
                                                     />
-                                                )}
+                                                </div>
                                             </div>
+                                        );
+                                    })}
+                                </div>
 
-                                            {/* Slot Dropdown */}
-                                            <div className="px-5 pb-5 pt-1 relative">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                                                    Available times
-                                                </p>
-                                                <SlotDropdown
-                                                    docItem={docItem}
-                                                    slotsForSelectedDay={
-                                                        slotsForSelectedDay
-                                                    }
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                {/* Doctors Pagination */}
+                                {showDoctorsPagination && (
+                                    <Pagination
+                                        currentPage={doctorsPage}
+                                        totalPages={totalDoctorPages}
+                                        onPageChange={setDoctorsPage}
+                                    />
+                                )}
+                            </>
                         )}
                     </div>
                 )}
@@ -753,211 +892,156 @@ export const PatientDashBoard = () => {
                                 </p>
                             </div>
                         ) : (
-                            <div className="flex flex-col gap-3">
-                                {paginatedAppointments.map((app) => {
-                                    const slotDate = app.slot_details?.date;
-                                    const slotTime =
-                                        app.slot_details?.start_time ||
-                                        app.slot_details?.time;
-                                    const canCancel =
-                                        app.status === 'Pending' ||
-                                        app.status === 'Confirmed';
-                                    const isCompleted =
-                                        app.status === 'Completed';
-                                    const alreadyReviewed = reviewedIds.has(
-                                        Number(app.id)
-                                    );
+                            <>
+                                <div className="flex flex-col gap-3">
+                                    {paginatedAppointments.map((app) => {
+                                        const slotDate = app.slot_details?.date;
+                                        const slotTime =
+                                            app.slot_details?.start_time ||
+                                            app.slot_details?.time;
+                                        const canCancel =
+                                            app.status === 'Pending' ||
+                                            app.status === 'Confirmed';
+                                        const isCompleted =
+                                            app.status === 'Completed';
+                                        const alreadyReviewed = reviewedIds.has(
+                                            Number(app.id)
+                                        );
 
-                                    return (
-                                        <div
-                                            key={app.id}
-                                            className="bg-white border border-slate-200/60 rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm hover:border-slate-300 transition-all"
-                                        >
-                                            {/* Date block */}
-                                            <div className="min-w-[80px] text-center sm:text-left">
-                                                <p className="text-base font-bold text-[#0f172a]">
-                                                    {slotDate
-                                                        ? new Date(
-                                                              slotDate +
-                                                                  'T00:00:00'
-                                                          ).getDate()
-                                                        : '—'}
-                                                </p>
-                                                <p className="text-xs text-slate-500 font-medium leading-tight">
-                                                    {slotDate
-                                                        ? new Date(
-                                                              slotDate +
-                                                                  'T00:00:00'
-                                                          ).toLocaleDateString(
-                                                              'en-US',
-                                                              {
-                                                                  month: 'short',
-                                                                  year: 'numeric',
-                                                              }
-                                                          )
-                                                        : ''}
-                                                </p>
-                                                {slotTime && (
-                                                    <p className="text-xs font-bold text-[#0f172a] mt-1">
-                                                        {slotTime}
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            <div className="w-px h-10 bg-slate-100 hidden sm:block" />
-
-                                            {/* Doctor info */}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-sm text-[#0f172a]">
-                                                    Dr. {app.doctor_name}
-                                                </p>
-                                                <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                                    {fmtDate(slotDate)}
-                                                    {slotTime
-                                                        ? ` · ${slotTime}`
-                                                        : ''}
-                                                </p>
-                                            </div>
-
-                                            <span
-                                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusStyles[app.status] || statusStyles.Pending}`}
+                                        return (
+                                            <div
+                                                key={app.id}
+                                                className="bg-white border border-slate-200/60 rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm hover:border-slate-300 transition-all"
                                             >
-                                                {app.status}
-                                            </span>
-
-                                            <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-50 text-slate-600 border border-slate-200 whitespace-nowrap">
-                                                {app.payment_status} ·{' '}
-                                                {app.consultation_fee} EGP
-                                            </span>
-
-                                            <div className="flex items-center gap-2 flex-shrink-0">
-                                                {app.prescription ? (
-                                                    <button
-                                                        onClick={() => {
-                                                            setSelectedRecord(
-                                                                app
-                                                            );
-                                                            setOpenModal(true);
-                                                        }}
-                                                        className="px-3 py-1.5 bg-[#0f172a] text-white font-semibold text-xs rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
-                                                    >
-                                                        View Rx
-                                                    </button>
-                                                ) : (
-                                                    <span className="text-slate-300 text-xs italic">
-                                                        No prescription
-                                                    </span>
-                                                )}
-
-                                                {/* ── Rate button — only on Completed, not yet reviewed ── */}
-                                                {isCompleted &&
-                                                    !alreadyReviewed && (
-                                                        <button
-                                                            onClick={() =>
-                                                                handleOpenReview(
-                                                                    app
-                                                                )
-                                                            }
-                                                            className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 font-semibold text-xs rounded-xl hover:bg-amber-100 transition-all cursor-pointer flex items-center gap-1"
-                                                        >
-                                                            ⭐ Rate
-                                                        </button>
+                                                {/* Date block */}
+                                                <div className="min-w-[80px] text-center sm:text-left">
+                                                    <p className="text-base font-bold text-[#0f172a]">
+                                                        {slotDate
+                                                            ? new Date(
+                                                                  slotDate +
+                                                                      'T00:00:00'
+                                                              ).getDate()
+                                                            : '—'}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500 font-medium leading-tight">
+                                                        {slotDate
+                                                            ? new Date(
+                                                                  slotDate +
+                                                                      'T00:00:00'
+                                                              ).toLocaleDateString(
+                                                                  'en-US',
+                                                                  {
+                                                                      month: 'short',
+                                                                      year: 'numeric',
+                                                                  }
+                                                              )
+                                                            : ''}
+                                                    </p>
+                                                    {slotTime && (
+                                                        <p className="text-xs font-bold text-[#0f172a] mt-1">
+                                                            {slotTime}
+                                                        </p>
                                                     )}
-                                                {isCompleted &&
-                                                    alreadyReviewed && (
-                                                        <span className="px-3 py-1.5 bg-slate-50 text-slate-400 border border-slate-200 font-semibold text-xs rounded-xl flex items-center gap-1 select-none">
-                                                            ✓ Reviewed
+                                                </div>
+
+                                                <div className="w-px h-10 bg-slate-100 hidden sm:block" />
+
+                                                {/* Doctor info */}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-sm text-[#0f172a]">
+                                                        Dr. {app.doctor_name}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                                        {fmtDate(slotDate)}
+                                                        {slotTime
+                                                            ? ` · ${slotTime}`
+                                                            : ''}
+                                                    </p>
+                                                </div>
+
+                                                <span
+                                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusStyles[app.status] || statusStyles.Pending}`}
+                                                >
+                                                    {app.status}
+                                                </span>
+
+                                                <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-50 text-slate-600 border border-slate-200 whitespace-nowrap">
+                                                    {app.payment_status} ·{' '}
+                                                    {app.consultation_fee} EGP
+                                                </span>
+
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    {app.prescription ? (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedRecord(
+                                                                    app
+                                                                );
+                                                                setOpenModal(
+                                                                    true
+                                                                );
+                                                            }}
+                                                            className="px-3 py-1.5 bg-[#0f172a] text-white font-semibold text-xs rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
+                                                        >
+                                                            View Rx
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-slate-300 text-xs italic">
+                                                            No prescription
                                                         </span>
                                                     )}
 
-                                                {canCancel && (
-                                                    <button
-                                                        onClick={() =>
-                                                            handleCancelAppointment(
-                                                                app
-                                                            )
-                                                        }
-                                                        className="px-3 py-1.5 bg-white text-red-500 border border-red-100 font-semibold text-xs rounded-xl hover:bg-red-50 transition-all cursor-pointer"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                )}
+                                                    {isCompleted &&
+                                                        !alreadyReviewed && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleOpenReview(
+                                                                        app
+                                                                    )
+                                                                }
+                                                                className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 font-semibold text-xs rounded-xl hover:bg-amber-100 transition-all cursor-pointer flex items-center gap-1"
+                                                            >
+                                                                ⭐ Rate
+                                                            </button>
+                                                        )}
+                                                    {isCompleted &&
+                                                        alreadyReviewed && (
+                                                            <span className="px-3 py-1.5 bg-slate-50 text-slate-400 border border-slate-200 font-semibold text-xs rounded-xl flex items-center gap-1 select-none">
+                                                                ✓ Reviewed
+                                                            </span>
+                                                        )}
+
+                                                    {canCancel && (
+                                                        <button
+                                                            onClick={() =>
+                                                                handleCancelAppointment(
+                                                                    app
+                                                                )
+                                                            }
+                                                            className="px-3 py-1.5 bg-white text-red-500 border border-red-100 font-semibold text-xs rounded-xl hover:bg-red-50 transition-all cursor-pointer"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Bookings Pagination */}
+                                {showBookingsPagination && (
+                                    <Pagination
+                                        currentPage={bookingsPage}
+                                        totalPages={totalBookingPages}
+                                        onPageChange={setBookingsPage}
+                                    />
+                                )}
+                            </>
                         )}
                     </div>
                 )}
             </div>
-
-            {activeTab === 1 && showBookingsPagination && (
-                <div className="flex items-center justify-center gap-2 pt-2">
-                    <button
-                        onClick={() => setBookingsPage(1)}
-                        disabled={bookingsPage === 1}
-                        className={`px-3 py-1 rounded-lg border ${bookingsPage === 1 ? 'bg-slate-100 text-slate-400' : 'bg-white hover:bg-slate-50'}`}
-                    >
-                        First
-                    </button>
-                    <button
-                        onClick={() =>
-                            setBookingsPage((p) => Math.max(1, p - 1))
-                        }
-                        disabled={bookingsPage === 1}
-                        className={`px-3 py-1 rounded-lg border ${bookingsPage === 1 ? 'bg-slate-100 text-slate-300' : 'bg-white hover:bg-slate-50'}`}
-                    >
-                        Prev
-                    </button>
-                    {(() => {
-                        const pages = [];
-                        const maxPagesToShow = 5;
-                        let start = Math.max(
-                            1,
-                            Math.min(
-                                bookingsPage - 2,
-                                totalBookingPages - (maxPagesToShow - 1)
-                            )
-                        );
-                        for (
-                            let i = 0;
-                            i < Math.min(maxPagesToShow, totalBookingPages);
-                            i++
-                        ) {
-                            const p = start + i;
-                            pages.push(p);
-                        }
-                        return pages.map((p) => (
-                            <button
-                                key={p}
-                                onClick={() => setBookingsPage(p)}
-                                className={`px-3 py-1 rounded-lg border ${bookingsPage === p ? 'bg-[#0f172a] text-white' : 'bg-white hover:bg-slate-50 text-slate-700'}`}
-                            >
-                                {p}
-                            </button>
-                        ));
-                    })()}
-                    <button
-                        onClick={() =>
-                            setBookingsPage((p) =>
-                                Math.min(totalBookingPages, p + 1)
-                            )
-                        }
-                        disabled={bookingsPage === totalBookingPages}
-                        className={`px-3 py-1 rounded-lg border ${bookingsPage === totalBookingPages ? 'bg-slate-100 text-slate-300' : 'bg-white hover:bg-slate-50'}`}
-                    >
-                        Next
-                    </button>
-                    <button
-                        onClick={() => setBookingsPage(totalBookingPages)}
-                        disabled={bookingsPage === totalBookingPages}
-                        className={`px-3 py-1 rounded-lg border ${bookingsPage === totalBookingPages ? 'bg-slate-100 text-slate-400' : 'bg-white hover:bg-slate-50'}`}
-                    >
-                        Last
-                    </button>
-                </div>
-            )}
 
             {/* ── Prescription Modal ── */}
             {openModal && selectedRecord && (
@@ -1018,7 +1102,7 @@ export const PatientDashBoard = () => {
                 </div>
             )}
 
-            {/* ── Doctor Profile Modal (with reviews) ── */}
+            {/* ── Doctor Profile Modal ── */}
             {doctorModalOpen && selectedDoctorProfile && (
                 <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100 max-h-[90vh] overflow-y-auto">
@@ -1097,7 +1181,6 @@ export const PatientDashBoard = () => {
                                 </p>
                             </div>
 
-                            {/* ── Reviews section ── */}
                             <div className="border-t border-slate-100 pt-4">
                                 <DoctorReviews
                                     doctorId={selectedDoctorProfile.id}
