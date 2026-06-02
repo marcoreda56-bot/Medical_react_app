@@ -50,3 +50,9 @@
         getPatientProfile: () => axiosInstance.get('/patient-profiles/me/'),
         savePatientProfile: (data) => axiosInstance.patch('/patient-profiles/me/', data),
     };
+
+
+    export const userAPI = {
+    getCurrent: () => axiosInstance.get('/users/me/'),
+    update: (id, data) => axiosInstance.patch(`/users/${id}/`, data),
+};
