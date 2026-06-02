@@ -4,8 +4,12 @@ export const OverviewCards = ({ stats }) => {
   const items = [
     { title: 'Users', value: stats.totalUsers, color: '#388e3c' },
     { title: 'Doctors', value: stats.totalDoctors, color: '#1976d2' },
+    { title: 'Patients', value: stats.totalPatients, color: '#00897b' },
     { title: 'Pending Approvals', value: stats.pendingDoctors, color: '#f57c00' },
     { title: 'Appointments', value: stats.totalAppointments, color: '#7b1fa2' },
+    { title: 'Specialties', value: stats.totalSpecialties, color: '#455a64' },
+    { title: 'Slots', value: stats.totalSlots, color: '#c2185b' },
+    { title: 'Availabilities', value: stats.totalAvailabilities, color: '#5d4037' },
   ];
 
   return (

@@ -2,19 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useAuth } from '../../context/AuthContext';
 import {
-  fetchAllUsers,
-  fetchDoctors,
-  fetchSpecialties,
+  fetchAdminDashboardData,
   fetchAppointments,
-  fetchConfigs,
   updateUserStatus,
   addSpecialty,
   updateSpecialty,
   deleteSpecialty,
   updateDoctorProfile,
-  addConfig,
-  updateConfig,
-  deleteConfig,
 } from '../../store/adminSlice';
 import { Container, Typography, Paper, Tabs, Tab, Box } from '@mui/material';
 import Swal from 'sweetalert2';
@@ -23,7 +17,6 @@ import { UsersPanel } from './components/UsersPanel';
 import { DoctorsPanel } from './components/DoctorsPanel';
 import { SpecialtiesPanel } from './components/SpecialtiesPanel';
 import { AppointmentsPanel } from './components/AppointmentsPanel';
-import { ConfigPanel } from './components/ConfigPanel';
 import { AnalyticsPanel } from './components/AnalyticsPanel';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -32,13 +25,11 @@ export const AdminDashBoard = () => {
   const tabLabels = t('admin.tabs');
   const dispatch = useDispatch();
   const { currentUser } = useAuth();
-  const { users, doctors, specialties, appointments, configs, error } = useSelector((state) => state.admin);
+  const { users, doctors, patients, specialties, appointments, slots, availabilities, error } = useSelector((state) => state.admin);
 
   const [activeTab, setActiveTab] = useState(0);
   const [specialtyForm, setSpecialtyForm] = useState({ name: '', description: '' });
   const [editingSpecialty, setEditingSpecialty] = useState(null);
-  const [configForm, setConfigForm] = useState({ key: '', value: '' });
-  const [editingConfig, setEditingConfig] = useState(null);
   const [doctorDrafts, setDoctorDrafts] = useState({});
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
   const [appointmentsError, setAppointmentsError] = useState(null);
@@ -57,22 +48,21 @@ export const AdminDashBoard = () => {
 
   useEffect(() => {
     if (!currentUser) return;
-    dispatch(fetchAllUsers());
-    dispatch(fetchDoctors());
-    dispatch(fetchSpecialties());
-    dispatch(fetchAppointments());
-    dispatch(fetchConfigs());
+    dispatch(fetchAdminDashboardData());
   }, [currentUser, dispatch]);
 
   const stats = useMemo(
     () => ({
       totalUsers: users.length,
       totalDoctors: doctors.length,
-      pendingDoctors: users.filter((user) => user.role === 'doctor' && user.status === 'pending').length,
+      totalPatients: patients.length,
+      pendingDoctors: doctors.filter((doctor) => doctor.status === 'pending').length,
       totalAppointments: appointments.length,
       totalSpecialties: specialties.length,
+      totalSlots: slots.length,
+      totalAvailabilities: availabilities.length,
     }),
-    [users, doctors, specialties, appointments]
+    [users, doctors, patients, specialties, appointments, slots, availabilities]
   );
 
   const analyticsData = useMemo(() => {
@@ -104,9 +94,8 @@ export const AdminDashBoard = () => {
       userStatusCounts,
       appointmentStatusCounts,
       specialtyCounts,
-      totalConfigs: configs.length,
     };
-  }, [users, doctors, appointments, configs]);
+  }, [users, doctors, appointments]);
 
   const getDoctorDraft = (doctor) => ({
     specialty: doctorDrafts[doctor.id]?.specialty ?? doctor.profile?.specialty ?? '',
@@ -213,57 +202,9 @@ export const AdminDashBoard = () => {
     }
   };
 
-  const handleAddConfig = async () => {
-    if (!configForm.key.trim() || !configForm.value.trim()) {
-      showToast('warning', t('admin.configKeyValueRequired'));
-      return;
-    }
-
-    try {
-      await dispatch(addConfig({ configKey: configForm.key, configValue: configForm.value })).unwrap();
-      setConfigForm({ key: '', value: '' });
-      showToast('success', t('admin.created'));
-    } catch (err) {
-      showToast('error', t('admin.configSaveFailed'), err.message || '');
-    }
-  };
-
-  const handleEditConfig = (config) => {
-    setEditingConfig(config);
-    setConfigForm({ key: config.key, value: config.value });
-  };
-
-  const handleSaveConfig = async () => {
-    if (!editingConfig || !configForm.key.trim()) return;
-    try {
-      await dispatch(updateConfig({ configId: editingConfig.id, key: configForm.key, value: configForm.value })).unwrap();
-      setEditingConfig(null);
-      setConfigForm({ key: '', value: '' });
-      showToast('success', t('admin.updated'));
-    } catch (err) {
-      showToast('error', t('admin.configUpdateFailed'), err.message || '');
-    }
-  };
-
-  const handleDeleteConfig = async (configId) => {
-    const result = await Swal.fire({
-      title: t('admin.deleteConfigConfirm'),
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: t('common.yes'),
-      cancelButtonText: t('common.cancel'),
-    });
-    if (!result.isConfirmed) return;
-
-    try {
-      await dispatch(deleteConfig({ configId })).unwrap();
-      showToast('success', t('admin.deleted'));
-    } catch (err) {
-      showToast('error', t('admin.configDeleteFailed'), err.message || '');
-    }
-  };
-
-  const usersList = users.filter((user) => user.role === 'doctor' || user.role === 'patient');
+  const usersList = users.length > 0
+    ? users.filter((user) => user.role === 'doctor' || user.role === 'patient')
+    : [...doctors, ...patients];
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 6 }}>
@@ -320,30 +261,13 @@ export const AdminDashBoard = () => {
           error={appointmentsError}
         />
       )}
-      
-      {activeTab === 4 && (
-        <ConfigPanel
-          configs={configs}
-          configForm={configForm}
-          onConfigChange={setConfigForm}
-          onSubmit={editingConfig ? handleSaveConfig : handleAddConfig}
-          editingConfig={editingConfig}
-          onEdit={handleEditConfig}
-          onCancel={() => {
-            setEditingConfig(null);
-            setConfigForm({ key: '', value: '' });
-          }}
-          onDelete={handleDeleteConfig}
-        />
-      )}
 
-      {activeTab === 5 && (
+      {activeTab === 4 && (
         <AnalyticsPanel
           stats={stats}
           userStatusCounts={analyticsData.userStatusCounts}
           appointmentStatusCounts={analyticsData.appointmentStatusCounts}
           specialtyCounts={analyticsData.specialtyCounts}
-          totalConfigs={analyticsData.totalConfigs}
         />
       )}
 
