@@ -2,12 +2,42 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axiosInstance from '../api/axios';
 import Swal from 'sweetalert2';
-import { 
-    Paper, Avatar, Typography, TextField, Button, 
-    RadioGroup, FormControlLabel, Radio, FormLabel 
+import {
+    Box,
+    Avatar,
+    Typography,
+    TextField,
+    Button,
+    RadioGroup,
+    FormControlLabel,
+    Radio,
+    FormLabel,
 } from '@mui/material';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import { useLanguage } from '../context/LanguageContext';
+
+const fullScreenBg = {
+    minHeight: '100vh',
+    width: '100%',
+    backgroundImage:
+        'url(https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&w=1200&q=80)',
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflowY: 'auto',
+    // padding: '2rem 1rem',
+};
+
+const overlay = {
+    position: 'absolute',
+    inset: 0,
+    background:
+        'linear-gradient(135deg, rgba(0, 77, 64, 0.85) 0%, rgba(0, 121, 107, 0.6) 100%)',
+};
 
 const Register = () => {
     const navigate = useNavigate();
@@ -23,15 +53,43 @@ const Register = () => {
     const [registeredEmail, setRegisteredEmail] = useState('');
 
     const Toast = Swal.mixin({
-        toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true,
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
     });
 
     const validateForm = () => {
-        if (name.trim().length < 3) { Toast.fire({ icon: 'error', title: t('register.toast.invalidName') }); return false; }
+        if (name.trim().length < 3) {
+            Toast.fire({
+                icon: 'error',
+                title: t('register.toast.invalidName'),
+            });
+            return false;
+        }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) { Toast.fire({ icon: 'error', title: t('register.toast.invalidEmail') }); return false; }
-        if (password.length < 6) { Toast.fire({ icon: 'error', title: t('register.toast.invalidPassword') }); return false; }
-        if (password !== confirmPassword) { Toast.fire({ icon: 'error', title: t('register.toast.passwordMismatch') }); return false; }
+        if (!emailRegex.test(email)) {
+            Toast.fire({
+                icon: 'error',
+                title: t('register.toast.invalidEmail'),
+            });
+            return false;
+        }
+        if (password.length < 6) {
+            Toast.fire({
+                icon: 'error',
+                title: t('register.toast.invalidPassword'),
+            });
+            return false;
+        }
+        if (password !== confirmPassword) {
+            Toast.fire({
+                icon: 'error',
+                title: t('register.toast.passwordMismatch'),
+            });
+            return false;
+        }
         return true;
     };
 
@@ -41,98 +99,357 @@ const Register = () => {
         try {
             const [first_name, ...rest] = name.trim().split(' ');
             const last_name = rest.join(' ');
-            const username = email.split('@')[0] + Math.floor(Math.random() * 1000);
-            await axiosInstance.post('/register/', { username, email, password, role, first_name, last_name });
+            const username =
+                email.split('@')[0] + Math.floor(Math.random() * 1000);
+            await axiosInstance.post('/register/', {
+                username,
+                email,
+                password,
+                role,
+                first_name,
+                last_name,
+            });
             setRegisteredEmail(email);
             setOtpSent(true);
+            Toast.fire({ icon: 'success', title: 'OTP sent to your email!' });
         } catch (err) {
-            Toast.fire({ icon: 'error', title: t('register.toast.failed') });
+            const msg =
+                err.response?.data?.error || err.response?.data?.email?.[0];
+            if (msg?.toLowerCase().includes('email')) {
+                Toast.fire({
+                    icon: 'error',
+                    title: t('register.toast.emailInUse'),
+                });
+            } else {
+                Toast.fire({
+                    icon: 'error',
+                    title: t('register.toast.failed'),
+                });
+            }
         }
     };
 
     const handleVerifyOTP = async (e) => {
         e.preventDefault();
+        if (!otp.trim()) {
+            Toast.fire({ icon: 'error', title: 'Please enter the OTP code.' });
+            return;
+        }
         try {
-            await axiosInstance.post('/auth/verify-otp/', { email: registeredEmail, otp });
-            Swal.fire({ title: t('register.toast.successTitle'), icon: 'success', confirmButtonText: t('login.signIn') })
-                .then(() => navigate('/login'));
+            await axiosInstance.post('/auth/verify-otp/', {
+                email: registeredEmail,
+                otp,
+            });
+            Swal.fire({
+                title: t('register.toast.successTitle'),
+                text: t('register.toast.successText'),
+                icon: 'success',
+                confirmButtonColor: '#00796b',
+                confirmButtonText: t('login.signIn'),
+            }).then(() => navigate('/login'));
         } catch (err) {
-            Toast.fire({ icon: 'error', title: 'Invalid or expired OTP.' });
+            Toast.fire({
+                icon: 'error',
+                title: err.response?.data?.error || 'Invalid or expired OTP.',
+            });
         }
     };
 
+    // ── Shared card style ──────────────────────────────────────────
+    const cardStyle = {
+        position: 'relative',
+        zIndex: 1,
+        // my: 4,
+        // mx: 2,
+        p: 4,
+        bgcolor: '#fff',
+        borderRadius: 4,
+        boxShadow: '0px 10px 40px rgba(0,0,0,0.18)',
+        width: '100%',
+        maxWidth: '420px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+    };
+
+    const avatarStyle = {
+        m: '0 auto 16px',
+        bgcolor: '#e0f2f1',
+        width: 60,
+        height: 60,
+        border: '2px solid #00796b',
+    };
+
+    // ── OTP Screen ─────────────────────────────────────────────────
+    if (otpSent) {
+        return (
+            <Box sx={fullScreenBg}>
+                <Box sx={overlay} />
+                <Box sx={cardStyle}>
+                    <Avatar sx={avatarStyle}>
+                        <LocalHospitalIcon
+                            sx={{ color: '#00796b', fontSize: 32 }}
+                        />
+                    </Avatar>
+                    <Typography
+                        variant="h5"
+                        sx={{
+                            fontWeight: 'bold',
+                            color: '#00796b',
+                            textAlign: 'center',
+                            mb: 1,
+                        }}
+                    >
+                        Verify Your Email
+                    </Typography>
+                    <Typography
+                        variant="body2"
+                        color="textSecondary"
+                        sx={{ textAlign: 'center', mb: 3 }}
+                    >
+                        We sent a 6-digit code to{' '}
+                        <strong>{registeredEmail}</strong>
+                    </Typography>
+                    <Box
+                        component="form"
+                        onSubmit={handleVerifyOTP}
+                        noValidate
+                        sx={{ width: '100%' }}
+                    >
+                        <TextField
+                            fullWidth
+                            required
+                            label="OTP Code"
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value)}
+                            inputProps={{ maxLength: 6 }}
+                            sx={{
+                                mb: 3,
+                                '& .MuiOutlinedInput-root': {
+                                    borderRadius: 2,
+                                    '&.Mui-focused fieldset': {
+                                        borderColor: '#00796b',
+                                    },
+                                },
+                                '& .MuiInputLabel-root.Mui-focused': {
+                                    color: '#00796b',
+                                },
+                            }}
+                        />
+                        <Button
+                            type="submit"
+                            fullWidth
+                            variant="contained"
+                            sx={{
+                                py: 1.4,
+                                bgcolor: '#00796b',
+                                '&:hover': { bgcolor: '#004d40' },
+                                fontWeight: 'bold',
+                                borderRadius: 2.5,
+                                textTransform: 'none',
+                                fontSize: '1rem',
+                            }}
+                        >
+                            Verify & Continue
+                        </Button>
+                    </Box>
+                </Box>
+            </Box>
+        );
+    }
+
+    // ── Register Screen ────────────────────────────────────────────
     return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-            <Paper elevation={4} className="w-full max-w-5xl flex overflow-hidden rounded-3xl min-h-[600px]">
-                
-                <div className="hidden md:flex md:w-5/12 bg-teal-900 relative p-12 flex-col justify-center text-white">
-                    <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&w=800&q=80')] bg-cover bg-center opacity-40"></div>
-                    <div className="relative z-10">
-                        <LocalHospitalIcon sx={{ fontSize: 60 }} />
-                        <h2 className="text-4xl font-bold mt-4 mb-6">{t('register.title')}</h2>
-                        <p className="text-lg text-teal-100">{t('register.subtitle')}</p>
-                    </div>
-                </div>
+        <Box sx={fullScreenBg}>
+            <Box sx={overlay} />
+            <Box sx={cardStyle}>
+                <Avatar sx={avatarStyle}>
+                    <LocalHospitalIcon
+                        sx={{ color: '#00796b', fontSize: 32 }}
+                    />
+                </Avatar>
+                <Typography
+                    component="h1"
+                    variant="h4"
+                    sx={{ fontWeight: '800', color: '#00796b', mt: 1 }}
+                >
+                    {t('register.title')}
+                </Typography>
+                <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    sx={{ mb: 2, mt: 0.5 }}
+                >
+                    {t('register.subtitle')}
+                </Typography>
 
-                <div className="w-full md:w-7/12 p-8 lg:p-14 bg-white flex flex-col justify-center">
-                    {!otpSent ? (
-                        <div className="flex flex-col gap-6">
-                            <h2 className="text-3xl font-extrabold text-teal-900">Create an account</h2>
-                            <form onSubmit={handleRegister} className="flex flex-col gap-5">
-                                <TextField fullWidth label={t('register.fullName')} variant="outlined" onChange={(e) => setName(e.target.value)} />
-                                <TextField fullWidth label={t('register.email')} variant="outlined" onChange={(e) => setEmail(e.target.value)} />
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    <TextField fullWidth label={t('register.password')} type="password" variant="outlined" onChange={(e) => setPassword(e.target.value)} />
-                                    <TextField fullWidth label={t('register.confirmPassword')} type="password" variant="outlined" onChange={(e) => setConfirmPassword(e.target.value)} />
-                                </div>
-                                
-                                <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50">
-                                    <FormLabel className="text-teal-800 font-bold mb-2 block">{t('register.roleLabel')}</FormLabel>
-                                    <RadioGroup row value={role} onChange={(e) => setRole(e.target.value)}>
-                                        <FormControlLabel value="patient" control={<Radio color="success" />} label={t('register.patient')} />
-                                        <FormControlLabel value="doctor" control={<Radio color="success" />} label={t('register.doctor')} />
-                                    </RadioGroup>
-                                </div>
+                <Box
+                    component="form"
+                    onSubmit={handleRegister}
+                    noValidate
+                    sx={{ width: '100%' }}
+                >
+                    {[
+                        {
+                            label: t('register.fullName'),
+                            value: name,
+                            setter: setName,
+                            type: 'text',
+                        },
+                        {
+                            label: t('register.email'),
+                            value: email,
+                            setter: setEmail,
+                            type: 'email',
+                        },
+                        {
+                            label: t('register.password'),
+                            value: password,
+                            setter: setPassword,
+                            type: 'password',
+                        },
+                        {
+                            label: t('register.confirmPassword'),
+                            value: confirmPassword,
+                            setter: setConfirmPassword,
+                            type: 'password',
+                        },
+                    ].map((field) => (
+                        <TextField
+                            key={field.label}
+                            margin="dense"
+                            required
+                            fullWidth
+                            label={field.label}
+                            type={field.type}
+                            value={field.value}
+                            onChange={(e) => field.setter(e.target.value)}
+                            sx={{
+                                '& .MuiOutlinedInput-root': {
+                                    borderRadius: 2,
+                                    '&.Mui-focused fieldset': {
+                                        borderColor: '#00796b',
+                                    },
+                                },
+                                '& .MuiInputLabel-root.Mui-focused': {
+                                    color: '#00796b',
+                                },
+                            }}
+                        />
+                    ))}
 
-                                <Button type="submit" fullWidth variant="contained" className="!bg-teal-700 !py-4 !rounded-xl !text-lg !normal-case !mt-2 shadow-lg hover:!bg-teal-800">
-                                    {t('register.signUp')}
-                                </Button>
-                            </form>
-                        </div>
-                    ) : (
-                        <div className="text-center p-6 flex flex-col gap-8">
-                            <h2 className="text-3xl font-bold text-teal-900">Activate your account</h2>
-                            <p className="text-slate-500">A verification code has been sent to <strong>{registeredEmail}</strong></p>
-                            
-                            <form onSubmit={handleVerifyOTP} className="flex flex-col gap-8">
-                                <div className="w-full">
-                                    <TextField 
-                                        fullWidth 
-                                        label="Enter 6-Digit Code" 
-                                        inputProps={{ 
-                                            maxLength: 6, 
-                                            style: { textAlign: 'center', fontSize: '24px', letterSpacing: '8px' } 
-                                        }} 
-                                        onChange={(e) => setOtp(e.target.value)} 
+                    <Box
+                        sx={{
+                            mt: 2,
+                            mb: 1,
+                            p: 1.5,
+                            borderRadius: 2,
+                            border: '1px solid #e0e0e0',
+                            textAlign: 'left',
+                        }}
+                    >
+                        <FormLabel
+                            component="legend"
+                            sx={{
+                                color: '#00796b',
+                                fontWeight: 'bold',
+                                fontSize: '0.85rem',
+                                mb: 0.5,
+                            }}
+                        >
+                            {t('register.roleLabel')}
+                        </FormLabel>
+                        <RadioGroup
+                            row
+                            value={role}
+                            onChange={(e) => setRole(e.target.value)}
+                        >
+                            <FormControlLabel
+                                value="patient"
+                                control={
+                                    <Radio
+                                        sx={{
+                                            color: '#00796b',
+                                            '&.Mui-checked': {
+                                                color: '#00796b',
+                                            },
+                                        }}
                                     />
-                                </div>
-                                <Button type="submit" fullWidth variant="contained" className="!bg-teal-700 !py-4 !rounded-xl !text-lg !normal-case">
-                                    Activate and Continue
-                                </Button>
-                            </form>
-                        </div>
-                    )}
+                                }
+                                label={
+                                    <Typography
+                                        sx={{
+                                            fontSize: '0.95rem',
+                                            fontWeight: 500,
+                                        }}
+                                    >
+                                        {t('register.patient')}
+                                    </Typography>
+                                }
+                            />
+                            <FormControlLabel
+                                value="doctor"
+                                control={
+                                    <Radio
+                                        sx={{
+                                            color: '#00796b',
+                                            '&.Mui-checked': {
+                                                color: '#00796b',
+                                            },
+                                        }}
+                                    />
+                                }
+                                label={
+                                    <Typography
+                                        sx={{
+                                            fontSize: '0.95rem',
+                                            fontWeight: 500,
+                                        }}
+                                    >
+                                        {t('register.doctor')}
+                                    </Typography>
+                                }
+                            />
+                        </RadioGroup>
+                    </Box>
 
-                    <div className="mt-10 text-center text-slate-600">
-                        {t('register.existingAccount')}{' '}
-                        <Link to="/login" className="text-teal-700 font-bold hover:underline">
-                            {t('login.signIn')}
-                        </Link>
-                    </div>
-                </div>
-            </Paper>
-        </div>
+                    <Button
+                        type="submit"
+                        fullWidth
+                        variant="contained"
+                        sx={{
+                            mt: 3,
+                            mb: 2,
+                            padding: 1.4,
+                            bgcolor: '#00796b',
+                            '&:hover': { bgcolor: '#004d40' },
+                            fontWeight: 'bold',
+                            borderRadius: 2.5,
+                            textTransform: 'none',
+                            fontSize: '1rem',
+                        }}
+                    >
+                        {t('register.signUp')}
+                    </Button>
+
+                    <Box sx={{ mt: 1, textAlign: 'center' }}>
+                        <Typography variant="body2" color="textSecondary">
+                            {t('register.existingAccount')}{' '}
+                            <Link
+                                to="/login"
+                                style={{
+                                    color: '#00796b',
+                                    textDecoration: 'none',
+                                    fontWeight: 'bold',
+                                }}
+                            >
+                                {t('register.signIn')}
+                            </Link>
+                        </Typography>
+                    </Box>
+                </Box>
+            </Box>
+        </Box>
     );
 };
 

@@ -1,4 +1,9 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import {
+    BrowserRouter as Router,
+    Routes,
+    Route,
+    Navigate,
+} from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import './App.css';
 
@@ -135,21 +140,8 @@ function AppContent() {
 
                 {/* Home & Fallback Redirection */}
                 <Route path="/" element={<Landing />} />
-                <Route
-                    path="/home"
-                    element={
-                        currentUser ? <Home /> : <Navigate to="/login" replace />
-                    }
-                />
-                <Route
-                    path="*"
-                    element={
-                        <Navigate
-                            to={currentUser ? getRedirectPath() : '/'}
-                            replace
-                        />
-                    }
-                />
+                <Route path="/home" element={<Home />} />
+                <Route path="*" element={<Navigate to={'/'} replace />} />
             </Routes>
         </>
     );
