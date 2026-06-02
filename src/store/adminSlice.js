@@ -20,7 +20,7 @@ export const fetchAllUsers = createAsyncThunk(
 );
 
 export const fetchDoctors = createAsyncThunk('admin/fetchDoctors', async () => {
-    const res = await axiosInstance.get('/users/?role=doctor');
+    const res = await axiosInstance.get('/doctors/');
     return res.data;
 });
 
@@ -58,10 +58,7 @@ export const updateUserStatus = createAsyncThunk(
 export const addSpecialty = createAsyncThunk(
     'admin/addSpecialty',
     async ({ name, description }) => {
-        const res = await axiosInstance.post('/specialties/', {
-            name,
-            description,
-        });
+        const res = await axiosInstance.post('/specialties/', { name, description });
         return res.data;
     }
 );
@@ -69,10 +66,7 @@ export const addSpecialty = createAsyncThunk(
 export const updateSpecialty = createAsyncThunk(
     'admin/updateSpecialty',
     async ({ specialtyId, name, description }) => {
-        const res = await axiosInstance.patch(`/specialties/${specialtyId}/`, {
-            name,
-            description,
-        });
+        const res = await axiosInstance.patch(`/specialties/${specialtyId}/`, { name, description });
         return { specialtyId, ...res.data };
     }
 );
@@ -85,15 +79,25 @@ export const deleteSpecialty = createAsyncThunk(
     }
 );
 
+// BUG FIX #4: كان بيبعت bio بس — دلوقتي بيبعت كل الحقول صح
 export const updateDoctorProfile = createAsyncThunk(
     'admin/updateDoctorProfile',
-    async ({ doctorId, specialty, bio, status }) => {
-        await axiosInstance.patch(`/doctor-profiles/${doctorId}/`, { bio });
+    async ({ doctorId, specialty, bio, consultationFee, location, phone, status }) => {
+        // 1. تحديث بيانات الـ profile
+        await axiosInstance.patch(`/doctor-profiles/${doctorId}/`, {
+            bio,
+            consultation_fee: consultationFee,
+            clinic_address: location,
+            clinic_phone: phone,
+        });
+
+        // 2. تحديث الـ status لو اتغير
         if (status === 'approved')
             await axiosInstance.post(`/users/${doctorId}/approve/`);
         if (status === 'blocked')
             await axiosInstance.post(`/users/${doctorId}/block/`);
-        return { doctorId, specialty, bio, status };
+
+        return { doctorId, specialty, bio, consultationFee, location, phone, status };
     }
 );
 
@@ -162,7 +166,9 @@ const adminSlice = createSlice({
                     u.id === userId ? { ...u, status } : u
                 );
                 state.doctors = state.doctors.map((d) =>
-                    d.id === userId ? { ...d, status } : d
+                    d.id === userId
+                        ? { ...d, status: 'approved', is_approved: true }
+                        : d
                 );
             })
             .addCase(addSpecialty.fulfilled, (state, action) => {
@@ -179,14 +185,20 @@ const adminSlice = createSlice({
                     (s) => s.id !== action.payload.specialtyId
                 );
             })
+            // BUG FIX #4: حفظ كل الحقول المحدثة صح
             .addCase(updateDoctorProfile.fulfilled, (state, action) => {
-                const { doctorId, bio, status } = action.payload;
+                const { doctorId, specialty, bio, consultationFee, location, phone, status } = action.payload;
                 state.doctors = state.doctors.map((d) =>
                     d.id === doctorId
                         ? {
                               ...d,
-                              profile: { ...d.profile, bio },
+                              bio,
+                              specialty_name: specialty,
+                              consultation_fee: consultationFee,
+                              clinic_address: location,
+                              clinic_phone: phone,
                               status: status || d.status,
+                              is_approved: status === 'approved' ? true : d.is_approved,
                           }
                         : d
                 );
