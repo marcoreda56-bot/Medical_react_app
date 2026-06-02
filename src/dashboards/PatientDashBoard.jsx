@@ -13,59 +13,14 @@ const toLocalDateStr = (date) => {
     return `${y}-${m}-${d}`;
 };
 
-const asArray = (data) => {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.results)) return data.results;
-    return [];
+const getSpecialtyName = (docItem) => {
+    return docItem?.specialty_name || 'Specialist';
 };
 
-const normalizeStatus = (status) => {
-    const value = String(status || 'Pending').toLowerCase();
-    if (value === 'confirmed' || value === 'approved') return 'Confirmed';
-    if (value === 'cancelled' || value === 'canceled' || value === 'rejected')
-        return 'Cancelled';
-    if (value === 'completed') return 'Completed';
-    return 'Pending';
+const getSpecialtyId = (docItem) => {
+    return docItem?.specialty_id ? Number(docItem.specialty_id) : null;
 };
 
-const buildSlotTime = (slot) => {
-    if (!slot) return '';
-    if (slot.time) return slot.time;
-    if (slot.start_time && slot.end_time)
-        return `${slot.start_time} - ${slot.end_time}`;
-    return slot.start_time || '';
-};
-
-const getSlotDetails = (appointment) => {
-    const slot = appointment.slot_details || appointment.slot || {};
-    return {
-        date:
-            slot.date || appointment.date || appointment.appointment_date || '',
-        time: buildSlotTime(slot) || appointment.time || '',
-    };
-};
-
-const normalizeAppointment = (appointment) => ({
-    ...appointment,
-    status: normalizeStatus(appointment.status),
-    slot_details: {
-        ...appointment.slot_details,
-        ...getSlotDetails(appointment),
-    },
-});
-
-const getSpecialtyName = (doctorProfile) => {
-    return doctorProfile?.specialty_name || 'Specialist';
-};
-
-const getSpecialtyId = (doctorProfile) => {
-    const sp = doctorProfile?.specialty;
-    if (!sp) return null;
-    if (typeof sp === 'object') return Number(sp.id);
-    return Number(sp);
-};
-
-// ── Reusable Pagination Component ──
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     if (totalPages <= 1) return null;
 
@@ -259,17 +214,13 @@ export const PatientDashBoard = () => {
                 appointmentAPI.getMyAppointments(),
             ]);
 
-            const specialtiesData = asArray(specRes.data);
-            const doctorsData = asArray(docRes.data);
-            const slotsData = asArray(slotRes.data);
-
-            setSpecialties(specialtiesData);
-            setDoctors(doctorsData);
-            setAllSlots(slotsData);
+            setSpecialties(specRes.data);
+            setDoctors(docRes.data);
+            setAllSlots(slotRes.data);
 
             const initialDays = {};
-            doctorsData.forEach((docItem) => {
-                const docSlots = slotsData.filter((s) => {
+            docRes.data.forEach((docItem) => {
+                const docSlots = slotRes.data.filter((s) => {
                     const sDocId =
                         s.doctor && typeof s.doctor === 'object'
                             ? Number(s.doctor.id)
@@ -286,12 +237,10 @@ export const PatientDashBoard = () => {
             setSelectedDayForDoc(initialDays);
 
             const unique = Object.values(
-                asArray(appRes.data)
-                    .map(normalizeAppointment)
-                    .reduce((acc, app) => {
-                        acc[app.id] = app;
-                        return acc;
-                    }, {})
+                (appRes.data || []).reduce((acc, app) => {
+                    acc[app.id] = app;
+                    return acc;
+                }, {})
             );
             setMyAppointments(unique);
         } catch (err) {
@@ -311,7 +260,7 @@ export const PatientDashBoard = () => {
     const handleBookSlot = async (doctor, slot) => {
         const doctorName =
             `${doctor.first_name} ${doctor.last_name}`.trim() || 'Doctor';
-        const amount = Number(doctor.doctor_profile?.consultation_fee) || 250;
+        const amount = Number(doctor.consultation_fee) || 250;
         const dayLabel = slot.date;
         const displayTime =
             slot.start_time || slot.time?.split(' - ')[0] || slot.time;
@@ -479,8 +428,7 @@ export const PatientDashBoard = () => {
                 .includes(searchQuery.toLowerCase());
         const matchesSpecialty =
             !selectedSpecialty ||
-            getSpecialtyId(docItem.doctor_profile) ===
-                Number(selectedSpecialty);
+            getSpecialtyId(docItem) === Number(selectedSpecialty);
         return matchesSearch && matchesSpecialty;
     });
 
@@ -720,9 +668,10 @@ export const PatientDashBoard = () => {
                                 <select
                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-slate-300 transition-all text-slate-600 cursor-pointer font-medium"
                                     value={selectedSpecialty}
-                                    onChange={(e) =>
-                                        setSelectedSpecialty(e.target.value)
-                                    }
+                                    onChange={(e) => {
+                                        setSelectedSpecialty(e.target.value);
+                                        setDoctorsPage(1); // ✅ reset pagination on filter change
+                                    }}
                                 >
                                     <option value="">All Specialties</option>
                                     {specialties.map((spec) => (
@@ -786,14 +735,8 @@ export const PatientDashBoard = () => {
                                                 )
                                             );
 
-                                        const specialtyName = getSpecialtyName(
-                                            docItem.doctor_profile
-                                        );
-                                        const fee =
-                                            Number(
-                                                docItem.doctor_profile
-                                                    ?.consultation_fee
-                                            ) || 250;
+                                        const specialtyName = getSpecialtyName(docItem);
+                                        const fee = Number(docItem.consultation_fee) || 250;
                                         const initials =
                                             (docItem.first_name?.charAt(0) ||
                                                 '') +
@@ -829,6 +772,7 @@ export const PatientDashBoard = () => {
                                                                             docItem.last_name
                                                                         }
                                                                     </h3>
+                                                                    {/* ✅ FIX: specialtyName بيجي صح دلوقتي */}
                                                                     <span className="inline-block text-[11px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-lg mt-1">
                                                                         {
                                                                             specialtyName
@@ -1167,9 +1111,7 @@ export const PatientDashBoard = () => {
                                     {selectedDoctorProfile.last_name}
                                 </h3>
                                 <span className="text-xs text-slate-500 font-semibold">
-                                    {getSpecialtyName(
-                                        selectedDoctorProfile.doctor_profile
-                                    )}
+                                    {selectedDoctorProfile.specialty_name || 'Specialist'}
                                 </span>
                             </div>
                         </div>
@@ -1181,10 +1123,7 @@ export const PatientDashBoard = () => {
                                         Consultation Fee
                                     </p>
                                     <p className="text-lg font-bold text-[#0f172a]">
-                                        {Number(
-                                            selectedDoctorProfile.doctor_profile
-                                                ?.consultation_fee
-                                        ) || 250}
+                                        {Number(selectedDoctorProfile.consultation_fee) || 250}
                                     </p>
                                     <p className="text-[11px] text-slate-500 font-medium">
                                         EGP / session
@@ -1202,17 +1141,14 @@ export const PatientDashBoard = () => {
                                 </div>
                             </div>
 
-                            {selectedDoctorProfile.doctor_profile
-                                ?.clinic_address && (
+                            {/* ✅ FIX: clinic_address flat من selectedDoctorProfile مباشرة */}
+                            {selectedDoctorProfile.clinic_address && (
                                 <div>
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
                                         📍 Clinic Address
                                     </span>
                                     <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
-                                        {
-                                            selectedDoctorProfile.doctor_profile
-                                                .clinic_address
-                                        }
+                                        {selectedDoctorProfile.clinic_address}
                                     </p>
                                 </div>
                             )}
@@ -1222,12 +1158,10 @@ export const PatientDashBoard = () => {
                                     📋 Biography
                                 </span>
                                 <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
-                                    {selectedDoctorProfile.doctor_profile
-                                        ?.bio ||
+                                    {selectedDoctorProfile.bio ||
                                         'No biography provided by the doctor.'}
                                 </p>
                             </div>
-                            {/* just a comment lol */}
 
                             <div className="border-t border-slate-100 pt-4">
                                 <DoctorReviews
