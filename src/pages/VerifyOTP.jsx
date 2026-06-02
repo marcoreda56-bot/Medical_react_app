@@ -14,74 +14,63 @@ export const VerifyOTP = () => {
   const handleVerify = async (e) => {
     e.preventDefault();
     if (!otp || otp.length < 6) {
-      Swal.fire({ icon: 'warning', title: 'Validation Error', text: 'Please enter a valid 6-digit OTP code.' });
+      Swal.fire({ icon: 'warning', title: 'Invalid Input', text: 'Please enter the 6-digit code.' });
       return;
     }
 
     setLoading(true);
     try {
       await authAPI.verifyOTP(email, otp);
-
-      Swal.fire({
-        icon: 'success',
-        title: 'Account Verified!',
-        text: 'Your account has been activated successfully. You can now log in.',
-        confirmButtonColor: '#00796b',
-      });
-
+      Swal.fire({ icon: 'success', title: 'Verified!', confirmButtonColor: '#0f766e' });
       navigate('/login');
     } catch (err) {
-      console.error(err);
-      Swal.fire({
-        icon: 'error',
-        title: 'Verification Failed',
-        text: err.response?.data?.error || 'Invalid or expired OTP code. Please try again.',
-      });
+      Swal.fire({ icon: 'error', title: 'Verification Failed', text: 'The code is incorrect or has expired.' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans text-left">
-      <div className="sm:mx-auto w-full max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 rounded-3xl border border-gray-100 sm:px-10">
+    <div className="min-h-screen w-full flex items-center justify-center bg-slate-100 p-6">
+      
+      <div className="w-full max-w-md bg-white p-12 rounded-[2.5rem] shadow-2xl border border-slate-100">
+        
+        <div className="flex flex-col items-center text-center mb-12">
+          <div className="w-20 h-20 bg-teal-100 rounded-full flex items-center justify-center text-teal-700 mb-8 shadow-inner">
+             <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+             </svg>
+          </div>
+          <h2 className="text-3xl font-extrabold text-slate-800 mb-3">Verify Account</h2>
+          <p className="text-slate-500 text-sm">Enter the code sent to <span className="font-bold text-teal-700">{email || 'your email'}</span></p>
+        </div>
+
+        <form onSubmit={handleVerify}>
           
-          <div className="text-center mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 mx-auto mb-3 shadow-xs">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286Zm0 13.036h.008v.008H12v-.008Z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-black text-gray-800 tracking-tight">Verify Your Account</h2>
-            <p className="mt-1.5 text-xs font-medium text-gray-500">
-              We have sent a 6-digit code to <span className="text-teal-600 font-bold block mt-0.5">{email || 'your email'}</span>
-            </p>
+          {/* هنا الـ Input بياخد مساحة سفلية كبيرة ثابتة */}
+          <div className="mb-12">
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest text-center mb-4">
+              Verification Code
+            </label>
+            <input
+              type="text"
+              maxLength="6"
+              placeholder="000000"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} 
+              className="w-full h-16 text-center text-4xl font-black tracking-[0.5em] text-slate-800 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none transition-all"
+            />
           </div>
 
-          <form onSubmit={handleVerify} className="space-y-5">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block pl-1">Enter OTP Code</label>
-              <input
-                type="text"
-                maxLength="6"
-                placeholder="000000"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} 
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-600 focus:bg-white text-center text-xl font-black tracking-widest text-gray-800 transition-all placeholder:text-gray-300"
-              />
-            </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full h-16 text-lg font-bold text-white bg-teal-700 rounded-2xl hover:bg-teal-800 active:scale-95 transition-all shadow-lg shadow-teal-500/30 cursor-pointer"
+          >
+            {loading ? 'Verifying...' : 'Activate Account'}
+          </button>
+        </form>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Verifying...' : 'Verify & Activate'}
-            </button>
-          </form>
-
-        </div>
       </div>
     </div>
   );
