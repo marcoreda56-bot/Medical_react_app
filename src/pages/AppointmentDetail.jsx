@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { appointmentAPI } from '../services/api';
 import {
     Container,
     Paper,
@@ -26,18 +25,31 @@ const AppointmentDetail = () => {
 
     useEffect(() => {
         const load = async () => {
-            const ref = doc(db, 'appointments', id);
-            const snap = await getDoc(ref);
-            if (snap.exists()) setAppointment({ id: snap.id, ...snap.data() });
-            setLoading(false);
+            try {
+                const res = await appointmentAPI.getAppointmentDetail(id);
+                const data = res.data;
+                const mappedData = {
+                    ...data,
+                    patientName: data.patient_name,
+                    doctorName: data.doctor_name,
+                    day: data.slot_details?.day || '',
+                    time: data.slot_details?.time || '',
+                    patientId: data.patient,
+                };
+                setAppointment(mappedData);
+            } catch (err) {
+                console.error('Failed to load appointment details:', err);
+                Swal.fire('Error', 'Could not load appointment details.', 'error');
+            } finally {
+                setLoading(false);
+            }
         };
         load();
     }, [id]);
 
     const handleApprove = async () => {
         try {
-            const ref = doc(db, 'appointments', id);
-            await updateDoc(ref, { status: 'Approved' });
+            await appointmentAPI.approveAppointment(id);
             if (appointment?.patientId)
                 await sendNotification(
                     appointment.patientId,
@@ -55,8 +67,7 @@ const AppointmentDetail = () => {
 
     const handleCancel = async () => {
         try {
-            const ref = doc(db, 'appointments', id);
-            await updateDoc(ref, { status: 'Cancelled' });
+            await appointmentAPI.cancelAppointment(id);
             if (appointment?.patientId)
                 await sendNotification(
                     appointment.patientId,
@@ -78,14 +89,10 @@ const AppointmentDetail = () => {
             return;
         }
         try {
-            const ref = doc(db, 'appointments', id);
-            await updateDoc(ref, {
-                status: 'Completed',
-                medicalRecord: {
-                    diagnosis,
-                    prescription,
-                    date: new Date().toLocaleDateString(),
-                },
+            await appointmentAPI.completeAppointment(id, {
+                diagnosis,
+                prescription,
+                doctor_notes: 'Completed'
             });
             if (appointment?.patientId)
                 await sendNotification(
