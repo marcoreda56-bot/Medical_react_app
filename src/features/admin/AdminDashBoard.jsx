@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useAuth } from '../../context/AuthContext';
 import {
-  fetchAdminDashboardData,
+  fetchAllUsers,
+  fetchDoctors,
+  fetchSpecialties,
   fetchAppointments,
   updateUserStatus,
   addSpecialty,
@@ -10,7 +12,6 @@ import {
   deleteSpecialty,
   updateDoctorProfile,
 } from '../../store/adminSlice';
-import { Container, Typography, Paper, Tabs, Tab, Box } from '@mui/material';
 import Swal from 'sweetalert2';
 import { OverviewCards } from './components/OverviewCards';
 import { UsersPanel } from './components/UsersPanel';
@@ -19,15 +20,19 @@ import { SpecialtiesPanel } from './components/SpecialtiesPanel';
 import { AppointmentsPanel } from './components/AppointmentsPanel';
 import { AnalyticsPanel } from './components/AnalyticsPanel';
 import { useLanguage } from '../../context/LanguageContext';
+import { Users, Stethoscope, Award, Calendar, BarChart3, Menu, X } from 'lucide-react';
+
+// ✅ الـ tabs دلوقتي 5 بس بدون Config
+const TAB_ICONS = [Users, Stethoscope, Award, Calendar, BarChart3];
 
 export const AdminDashBoard = () => {
   const { t } = useLanguage();
-  const tabLabels = t('admin.tabs');
   const dispatch = useDispatch();
   const { currentUser } = useAuth();
-  const { users, doctors, patients, specialties, appointments, slots, availabilities, error } = useSelector((state) => state.admin);
+  const { users, doctors, specialties, appointments, error } = useSelector((state) => state.admin);
 
   const [activeTab, setActiveTab] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [specialtyForm, setSpecialtyForm] = useState({ name: '', description: '' });
   const [editingSpecialty, setEditingSpecialty] = useState(null);
   const [doctorDrafts, setDoctorDrafts] = useState({});
@@ -48,21 +53,22 @@ export const AdminDashBoard = () => {
 
   useEffect(() => {
     if (!currentUser) return;
-    dispatch(fetchAdminDashboardData());
+    dispatch(fetchAllUsers());
+    dispatch(fetchDoctors());
+    dispatch(fetchSpecialties());
+    dispatch(fetchAppointments());
+    // ✅ حذف fetchConfigs
   }, [currentUser, dispatch]);
 
   const stats = useMemo(
     () => ({
       totalUsers: users.length,
       totalDoctors: doctors.length,
-      totalPatients: patients.length,
-      pendingDoctors: doctors.filter((doctor) => doctor.status === 'pending').length,
+      pendingDoctors: doctors.filter((d) => d.status === 'pending').length,
       totalAppointments: appointments.length,
       totalSpecialties: specialties.length,
-      totalSlots: slots.length,
-      totalAvailabilities: availabilities.length,
     }),
-    [users, doctors, patients, specialties, appointments, slots, availabilities]
+    [users, doctors, specialties, appointments]
   );
 
   const analyticsData = useMemo(() => {
@@ -85,34 +91,27 @@ export const AdminDashBoard = () => {
     }, {});
 
     const specialtyCounts = doctors.reduce((acc, doctor) => {
-      const specialty = doctor.profile?.specialty || 'Unassigned';
+      const specialty = doctor.specialty_name || 'Unassigned';
       acc[specialty] = (acc[specialty] || 0) + 1;
       return acc;
     }, {});
 
-    return {
-      userStatusCounts,
-      appointmentStatusCounts,
-      specialtyCounts,
-    };
+    return { userStatusCounts, appointmentStatusCounts, specialtyCounts };
   }, [users, doctors, appointments]);
 
   const getDoctorDraft = (doctor) => ({
-    specialty: doctorDrafts[doctor.id]?.specialty ?? doctor.profile?.specialty ?? '',
-    bio: doctorDrafts[doctor.id]?.bio ?? doctor.profile?.bio ?? '',
-    consultationFee: doctorDrafts[doctor.id]?.consultationFee ?? doctor.profile?.consultationFee ?? '',
-    location: doctorDrafts[doctor.id]?.location ?? doctor.profile?.location ?? '',
-    phone: doctorDrafts[doctor.id]?.phone ?? doctor.profile?.phone ?? '',
+    specialty: doctorDrafts[doctor.id]?.specialty ?? doctor.specialty_name ?? '',
+    bio: doctorDrafts[doctor.id]?.bio ?? doctor.bio ?? '',
+    consultationFee: doctorDrafts[doctor.id]?.consultationFee ?? doctor.consultation_fee ?? '',
+    location: doctorDrafts[doctor.id]?.location ?? doctor.clinic_address ?? '',
+    phone: doctorDrafts[doctor.id]?.phone ?? doctor.clinic_phone ?? doctor.phone ?? '',
     status: doctorDrafts[doctor.id]?.status ?? doctor.status ?? 'pending',
   });
 
   const handleDoctorDraftChange = (doctorId, field, value) => {
     setDoctorDrafts((prev) => ({
       ...prev,
-      [doctorId]: {
-        ...prev[doctorId],
-        [field]: value,
-      },
+      [doctorId]: { ...prev[doctorId], [field]: value },
     }));
   };
 
@@ -144,8 +143,20 @@ export const AdminDashBoard = () => {
     try {
       await dispatch(updateUserStatus({ userId, status: targetStatus })).unwrap();
       showToast('success', `${t('admin.updated')} ${t('statuses.' + targetStatus.toLowerCase())}`);
+      dispatch(fetchAllUsers());
     } catch (err) {
       showToast('error', t('admin.userStatusChangeFailed'), err.message || '');
+    }
+  };
+
+  const handleApproveDoctor = async (doctorId) => {
+    try {
+      await dispatch(updateUserStatus({ userId: doctorId, status: 'approved' })).unwrap();
+      showToast('success', t('admin.updated') || 'Doctor approved successfully!');
+      dispatch(fetchDoctors());
+      dispatch(fetchAllUsers());
+    } catch (err) {
+      showToast('error', t('admin.userStatusChangeFailed') || 'Approval failed', err.message || '');
     }
   };
 
@@ -154,7 +165,6 @@ export const AdminDashBoard = () => {
       showToast('warning', t('admin.specialtyNameRequired'));
       return;
     }
-
     try {
       await dispatch(addSpecialty({ name: specialtyForm.name, description: specialtyForm.description })).unwrap();
       setSpecialtyForm({ name: '', description: '' });
@@ -193,7 +203,6 @@ export const AdminDashBoard = () => {
       cancelButtonText: t('common.cancel'),
     });
     if (!result.isConfirmed) return;
-
     try {
       await dispatch(deleteSpecialty({ specialtyId })).unwrap();
       showToast('success', t('admin.deleted'));
@@ -202,80 +211,120 @@ export const AdminDashBoard = () => {
     }
   };
 
-  const usersList = users.length > 0
-    ? users.filter((user) => user.role === 'doctor' || user.role === 'patient')
-    : [...doctors, ...patients];
+  const usersList = users.filter((user) => user.role === 'doctor' || user.role === 'patient');
+
+  // ✅ الـ tab labels بتيجي من الـ translation لكن بنأخد أول 5 بس (بدون Config)
+  const tabLabels = (t('admin.tabs') || []).slice(0, 5);
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 6 }}>
-      <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold', color: '#00796b' }}>
-        {t('admin.dashboard')}
-      </Typography>
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row text-slate-800">
+      {/* Mobile Top Header */}
+      <div className="md:hidden bg-teal-700 text-white p-4 flex justify-between items-center shadow-md">
+        <h1 className="text-xl font-bold">{t('admin.dashboard')}</h1>
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1 rounded-md hover:bg-teal-600">
+          {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
 
-      <OverviewCards stats={stats} />
-
-      <Paper elevation={3} sx={{ mb: 4, borderRadius: 3 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(event, value) => setActiveTab(value)}
-          indicatorColor="primary"
-          textColor="primary"
-          centered
-          sx={{ '& .MuiTabs-indicator': { bgcolor: '#00796b', height: 4 } }}
-        >
-          {tabLabels.map((label) => (
-            <Tab key={label} label={label} />
-          ))}
-        </Tabs>
-      </Paper>
-
-      {activeTab === 0 && <UsersPanel usersList={usersList} onStatusChange={handleUserStatusChange} />}
-      {activeTab === 1 && (
-        <DoctorsPanel
-          doctors={doctors}
-          getDoctorDraft={getDoctorDraft}
-          onDoctorDraftChange={handleDoctorDraftChange}
-          onUpdateDoctor={handleUpdateDoctor}
-        />
-      )}
-      {activeTab === 2 && (
-        <SpecialtiesPanel
-          specialties={specialties}
-          specialtyForm={specialtyForm}
-          onSpecialtyChange={setSpecialtyForm}
-          onSubmit={editingSpecialty ? handleSaveSpecialty : handleAddSpecialty}
-          editingSpecialty={editingSpecialty}
-          onEdit={handleEditSpecialty}
-          onCancel={() => {
-            setEditingSpecialty(null);
-            setSpecialtyForm({ name: '', description: '' });
-          }}
-          onDelete={handleDeleteSpecialty}
-        />
-      )}
-      {activeTab === 3 && (
-        <AppointmentsPanel
-          appointments={appointments}
-          onRefresh={refreshAppointments}
-          loading={appointmentsLoading}
-          error={appointmentsError}
-        />
+      {isSidebarOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 z-40 md:hidden" onClick={() => setIsSidebarOpen(false)} />
       )}
 
-      {activeTab === 4 && (
-        <AnalyticsPanel
-          stats={stats}
-          userStatusCounts={analyticsData.userStatusCounts}
-          appointmentStatusCounts={analyticsData.appointmentStatusCounts}
-          specialtyCounts={analyticsData.specialtyCounts}
-        />
-      )}
+      <aside className={`fixed md:sticky top-0 inset-y-0 left-0 w-64 bg-white border-r border-slate-200 z-50 transform md:transform-none transition-transform duration-300 flex flex-col justify-between ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div>
+          <div className="p-6 border-b border-slate-100 hidden md:block">
+            <h1 className="text-2xl font-bold text-teal-700">{t('admin.dashboard')}</h1>
+          </div>
+          <nav className="p-4 space-y-1">
+            {tabLabels.map((label, idx) => {
+              const Icon = TAB_ICONS[idx] || BarChart3;
+              return (
+                <button
+                  key={label}
+                  onClick={() => { setActiveTab(idx); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                    activeTab === idx
+                      ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Icon size={18} />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+        <div className="p-4 border-t border-slate-100 text-xs text-slate-400 text-center">
+          Medical System v2.0
+        </div>
+      </aside>
 
-      {error && (
-        <Box sx={{ mt: 4, p: 2, bgcolor: '#ffebee', borderRadius: 2 }}>
-          <Typography color="error">Error: {error}</Typography>
-        </Box>
-      )}
-    </Container>
+      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-6">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">{tabLabels[activeTab]}</h2>
+          <p className="text-sm text-slate-500">Manage your system configurations and overview analytics data.</p>
+        </div>
+
+        <OverviewCards stats={stats} />
+
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden p-5 md:p-6">
+          {/* ✅ 0: Users */}
+          {activeTab === 0 && (
+            <UsersPanel usersList={usersList} onStatusChange={handleUserStatusChange} />
+          )}
+
+          {/* ✅ 1: Doctors */}
+          {activeTab === 1 && (
+            <DoctorsPanel
+              doctors={doctors}
+              getDoctorDraft={getDoctorDraft}
+              onDoctorDraftChange={handleDoctorDraftChange}
+              onUpdateDoctor={handleUpdateDoctor}
+              onApprove={handleApproveDoctor}
+            />
+          )}
+
+          {/* ✅ 2: Specialties */}
+          {activeTab === 2 && (
+            <SpecialtiesPanel
+              specialties={specialties}
+              specialtyForm={specialtyForm}
+              onSpecialtyChange={setSpecialtyForm}
+              onSubmit={editingSpecialty ? handleSaveSpecialty : handleAddSpecialty}
+              editingSpecialty={editingSpecialty}
+              onEdit={handleEditSpecialty}
+              onCancel={() => { setEditingSpecialty(null); setSpecialtyForm({ name: '', description: '' }); }}
+              onDelete={handleDeleteSpecialty}
+            />
+          )}
+
+          {/* ✅ 3: Appointments */}
+          {activeTab === 3 && (
+            <AppointmentsPanel
+              appointments={appointments}
+              onRefresh={refreshAppointments}
+              loading={appointmentsLoading}
+              error={appointmentsError}
+            />
+          )}
+
+          {/* ✅ 4: Analytics — كان 5 قبل كده بسبب Config */}
+          {activeTab === 4 && (
+            <AnalyticsPanel
+              userStatusCounts={analyticsData.userStatusCounts}
+              appointmentStatusCounts={analyticsData.appointmentStatusCounts}
+              specialtyCounts={analyticsData.specialtyCounts}
+            />
+          )}
+        </div>
+
+        {error && (
+          <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-sm font-medium">
+            Error: {error}
+          </div>
+        )}
+      </main>
+    </div>
   );
 };

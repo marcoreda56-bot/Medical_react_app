@@ -1,33 +1,24 @@
-import { Grid, Card, CardContent, Typography } from '@mui/material';
-
 export const OverviewCards = ({ stats }) => {
   const items = [
-    { title: 'Users', value: stats.totalUsers, color: '#388e3c' },
-    { title: 'Doctors', value: stats.totalDoctors, color: '#1976d2' },
-    { title: 'Patients', value: stats.totalPatients, color: '#00897b' },
-    { title: 'Pending Approvals', value: stats.pendingDoctors, color: '#f57c00' },
-    { title: 'Appointments', value: stats.totalAppointments, color: '#7b1fa2' },
-    { title: 'Specialties', value: stats.totalSpecialties, color: '#455a64' },
-    { title: 'Slots', value: stats.totalSlots, color: '#c2185b' },
-    { title: 'Availabilities', value: stats.totalAvailabilities, color: '#5d4037' },
+    { title: 'Users', value: stats.totalUsers, borderColor: 'border-l-[#388e3c]', textColor: 'text-[#388e3c]' },
+    { title: 'Doctors', value: stats.totalDoctors, borderColor: 'border-l-[#1976d2]', textColor: 'text-[#1976d2]' },
+    { title: 'Pending Approvals', value: stats.pendingDoctors, borderColor: 'border-l-[#f57c00]', textColor: 'text-[#f57c00]' },
+    { title: 'Appointments', value: stats.totalAppointments, borderColor: 'border-l-[#7b1fa2]', textColor: 'text-[#7b1fa2]' },
   ];
 
   return (
-    <Grid container spacing={3} sx={{ mb: 3 }}>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
       {items.map((item) => (
-        <Grid item xs={12} sm={6} md={3} key={item.title}>
-          <Card sx={{ borderLeft: `5px solid ${item.color}`, minHeight: 140, display: 'flex', alignItems: 'center' }}>
-            <CardContent sx={{ width: '100%' }}>
-              <Typography variant="subtitle2" sx={{ color: item.color, fontWeight: 'bold' }}>
-                {item.title}
-              </Typography>
-              <Typography variant="h4" sx={{ mt: 1, fontWeight: 'bold' }}>
-                {item.value}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+        <div
+          key={item.title}
+          className={`bg-white p-5 rounded-2xl border-y border-r border-slate-200 border-l-[6px] ${item.borderColor} shadow-sm flex items-center min-h-[120px] transition-transform duration-200 hover:-translate-y-0.5`}
+        >
+          <div className="w-full">
+            <p className={`text-xs font-bold uppercase tracking-wider ${item.textColor}`}>{item.title}</p>
+            <h3 className="text-3xl font-extrabold text-slate-800 mt-2">{item.value ?? 0}</h3>
+          </div>
+        </div>
       ))}
-    </Grid>
+    </div>
   );
 };
