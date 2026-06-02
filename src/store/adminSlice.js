@@ -1,15 +1,48 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axiosInstance from '../api/axios';
+import { fetchAdminDashboardData as fetchAdminDashboardDataApi } from '../services/adminDashboard';
+
+const asArray = (data) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
+};
+
+const getProfileUserId = (profile) =>
+    profile.user?.id ?? profile.user_id ?? profile.user ?? profile.doctor_id ?? profile.patient_id;
+
+const mergeUsersWithProfiles = (users, profiles) => {
+    const profilesByUserId = new Map(
+        asArray(profiles)
+            .map((profile) => [getProfileUserId(profile), profile])
+            .filter(([userId]) => userId !== undefined && userId !== null)
+    );
+
+    return asArray(users).map((user) => ({
+        ...user,
+        profile: user.profile || profilesByUserId.get(user.id) || null,
+    }));
+};
 
 const initialState = {
     users: [],
     doctors: [],
+    patients: [],
     specialties: [],
     appointments: [],
+    doctorProfiles: [],
+    patientProfiles: [],
+    slots: [],
+    availabilities: [],
     configs: [],
     status: 'idle',
     error: null,
 };
+
+export const fetchAdminDashboardData = createAsyncThunk(
+    'admin/fetchAdminDashboardData',
+    async () => fetchAdminDashboardDataApi()
+);
 
 export const fetchAllUsers = createAsyncThunk(
     'admin/fetchAllUsers',
@@ -124,22 +157,46 @@ const adminSlice = createSlice({
     reducers: {},
     extraReducers: (builder) => {
         builder
+            .addCase(fetchAdminDashboardData.pending, (state) => {
+                state.status = 'loading';
+                state.error = null;
+            })
+            .addCase(fetchAdminDashboardData.fulfilled, (state, action) => {
+                const payload = action.payload;
+                const doctorProfiles = asArray(payload.doctorProfiles);
+                const patientProfiles = asArray(payload.patientProfiles);
+
+                state.status = 'succeeded';
+                state.users = asArray(payload.users);
+                state.doctors = mergeUsersWithProfiles(payload.doctors, doctorProfiles);
+                state.patients = mergeUsersWithProfiles(payload.patients, patientProfiles);
+                state.appointments = asArray(payload.appointments);
+                state.specialties = asArray(payload.specialties);
+                state.doctorProfiles = doctorProfiles;
+                state.patientProfiles = patientProfiles;
+                state.slots = asArray(payload.slots);
+                state.availabilities = asArray(payload.availabilities);
+            })
+            .addCase(fetchAdminDashboardData.rejected, (state, action) => {
+                state.status = 'failed';
+                state.error = action.error.message;
+            })
             .addCase(fetchAllUsers.pending, (state) => {
                 state.status = 'loading';
             })
             .addCase(fetchAllUsers.fulfilled, (state, action) => {
                 state.status = 'succeeded';
-                state.users = action.payload;
+                state.users = asArray(action.payload);
             })
             .addCase(fetchAllUsers.rejected, (state, action) => {
                 state.status = 'failed';
                 state.error = action.error.message;
             })
             .addCase(fetchDoctors.fulfilled, (state, action) => {
-                state.doctors = action.payload;
+                state.doctors = asArray(action.payload);
             })
             .addCase(fetchSpecialties.fulfilled, (state, action) => {
-                state.specialties = action.payload;
+                state.specialties = asArray(action.payload);
             })
             .addCase(fetchAppointments.pending, (state) => {
                 state.status = 'loading';
@@ -147,7 +204,7 @@ const adminSlice = createSlice({
             })
             .addCase(fetchAppointments.fulfilled, (state, action) => {
                 state.status = 'succeeded';
-                state.appointments = action.payload;
+                state.appointments = asArray(action.payload);
             })
             .addCase(fetchAppointments.rejected, (state, action) => {
                 state.status = 'failed';
@@ -163,6 +220,9 @@ const adminSlice = createSlice({
                 );
                 state.doctors = state.doctors.map((d) =>
                     d.id === userId ? { ...d, status } : d
+                );
+                state.patients = state.patients.map((p) =>
+                    p.id === userId ? { ...p, status } : p
                 );
             })
             .addCase(addSpecialty.fulfilled, (state, action) => {

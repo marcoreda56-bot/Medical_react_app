@@ -79,7 +79,7 @@ const translations = {
     admin: {
       title: 'Admin Control Center',
       dashboard: 'Admin Control Center',
-      tabs: ['Users', 'Doctors', 'Specialties', 'Appointments', 'Config', 'Analytics'],
+      tabs: ['Users', 'Doctors', 'Specialties', 'Appointments', 'Analytics'],
       doctorsManagement: 'Doctors Management',
       usersOverview: 'All Users',
       specialtiesManagement: 'Specialties Management',
@@ -306,7 +306,7 @@ const translations = {
     admin: {
       title: 'لوحة تحكم المسؤول',
       dashboard: 'لوحة تحكم المسؤول',
-      tabs: ['المستخدمون', 'الأطباء', 'التخصصات', 'المواعيد', 'الإعدادات', 'التحليلات'],
+      tabs: ['المستخدمون', 'الأطباء', 'التخصصات', 'المواعيد', 'التحليلات'],
       doctorsManagement: 'إدارة الأطباء',
       usersOverview: 'جميع المستخدمين',
       specialtiesManagement: 'إدارة التخصصات',

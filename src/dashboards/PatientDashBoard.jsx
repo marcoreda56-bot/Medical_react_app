@@ -13,6 +13,47 @@ const toLocalDateStr = (date) => {
     return `${y}-${m}-${d}`;
 };
 
+const asArray = (data) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
+};
+
+const normalizeStatus = (status) => {
+    const value = String(status || 'Pending').toLowerCase();
+    if (value === 'confirmed' || value === 'approved') return 'Confirmed';
+    if (value === 'cancelled' || value === 'canceled' || value === 'rejected')
+        return 'Cancelled';
+    if (value === 'completed') return 'Completed';
+    return 'Pending';
+};
+
+const buildSlotTime = (slot) => {
+    if (!slot) return '';
+    if (slot.time) return slot.time;
+    if (slot.start_time && slot.end_time)
+        return `${slot.start_time} - ${slot.end_time}`;
+    return slot.start_time || '';
+};
+
+const getSlotDetails = (appointment) => {
+    const slot = appointment.slot_details || appointment.slot || {};
+    return {
+        date:
+            slot.date || appointment.date || appointment.appointment_date || '',
+        time: buildSlotTime(slot) || appointment.time || '',
+    };
+};
+
+const normalizeAppointment = (appointment) => ({
+    ...appointment,
+    status: normalizeStatus(appointment.status),
+    slot_details: {
+        ...appointment.slot_details,
+        ...getSlotDetails(appointment),
+    },
+});
+
 const getSpecialtyName = (doctorProfile) => {
     return doctorProfile?.specialty_name || 'Specialist';
 };
@@ -218,13 +259,17 @@ export const PatientDashBoard = () => {
                 appointmentAPI.getMyAppointments(),
             ]);
 
-            setSpecialties(specRes.data);
-            setDoctors(docRes.data);
-            setAllSlots(slotRes.data);
+            const specialtiesData = asArray(specRes.data);
+            const doctorsData = asArray(docRes.data);
+            const slotsData = asArray(slotRes.data);
+
+            setSpecialties(specialtiesData);
+            setDoctors(doctorsData);
+            setAllSlots(slotsData);
 
             const initialDays = {};
-            docRes.data.forEach((docItem) => {
-                const docSlots = slotRes.data.filter((s) => {
+            doctorsData.forEach((docItem) => {
+                const docSlots = slotsData.filter((s) => {
                     const sDocId =
                         s.doctor && typeof s.doctor === 'object'
                             ? Number(s.doctor.id)
@@ -241,10 +286,12 @@ export const PatientDashBoard = () => {
             setSelectedDayForDoc(initialDays);
 
             const unique = Object.values(
-                (appRes.data || []).reduce((acc, app) => {
-                    acc[app.id] = app;
-                    return acc;
-                }, {})
+                asArray(appRes.data)
+                    .map(normalizeAppointment)
+                    .reduce((acc, app) => {
+                        acc[app.id] = app;
+                        return acc;
+                    }, {})
             );
             setMyAppointments(unique);
         } catch (err) {
@@ -1180,6 +1227,7 @@ export const PatientDashBoard = () => {
                                         'No biography provided by the doctor.'}
                                 </p>
                             </div>
+                            {/* just a comment lol */}
 
                             <div className="border-t border-slate-100 pt-4">
                                 <DoctorReviews
