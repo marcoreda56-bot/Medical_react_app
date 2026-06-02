@@ -9,6 +9,50 @@ const toLocalDateStr = (date) => {
     return `${y}-${m}-${d}`;
 };
 
+const asArray = (data) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
+};
+
+const normalizeStatus = (status) => {
+    const value = String(status || 'Pending').toLowerCase();
+    if (value === 'confirmed' || value === 'approved') return 'Confirmed';
+    if (value === 'cancelled' || value === 'canceled' || value === 'rejected') return 'Cancelled';
+    if (value === 'completed') return 'Completed';
+    return 'Pending';
+};
+
+const buildSlotTime = (slot) => {
+    if (!slot) return '';
+    if (slot.time) return slot.time;
+    if (slot.start_time && slot.end_time) return `${slot.start_time} - ${slot.end_time}`;
+    return slot.start_time || '';
+};
+
+const getSlotDetails = (appointment) => {
+    const slot = appointment.slot_details || appointment.slot || {};
+    return {
+        date: slot.date || appointment.date || appointment.appointment_date || '',
+        day: slot.day || appointment.day || '',
+        time: buildSlotTime(slot) || appointment.time || '',
+    };
+};
+
+const getPatientName = (appointment) => {
+    if (appointment.patient_name) return appointment.patient_name;
+    const patient = appointment.patient_details || appointment.patient || {};
+    const fullName = `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
+    return fullName || patient.name || patient.email || 'Anonymous Patient';
+};
+
+const normalizeAppointment = (appointment) => ({
+    ...appointment,
+    status: normalizeStatus(appointment.status),
+    patient_name: getPatientName(appointment),
+    slot_details: getSlotDetails(appointment),
+});
+
 export const DoctorDashBoard = () => {
     const [activeTab, setActiveTab] = useState('appointments');
     const [loading, setLoading] = useState(false);
@@ -47,19 +91,19 @@ export const DoctorDashBoard = () => {
         try {
             const appsRes = await appointmentAPI.getMyAppointments();
             const unique = Object.values(
-                (appsRes.data || []).reduce((acc, app) => {
+                asArray(appsRes.data).map(normalizeAppointment).reduce((acc, app) => {
                     acc[app.id] = app;
                     return acc;
                 }, {})
             );
             const filtered = unique.filter(app => {
-                const appDate = app.slot_details?.date;
-                return !appDate || appDate >= todayStr;
+                const appDate = getSlotDetails(app).date;
+                return app.status === 'Completed' || !appDate || appDate >= todayStr;
             });
             setAppointments(filtered);
 
             const slotsRes = await doctorAPI.getMySlots();
-            const filteredSlots = (slotsRes.data || []).filter(s => !s.date || s.date >= todayStr);
+            const filteredSlots = asArray(slotsRes.data).filter(s => !s.date || s.date >= todayStr);
             setSlots(filteredSlots);
         } catch (err) {
             console.error('Error loading dashboard data:', err);
@@ -212,12 +256,12 @@ export const DoctorDashBoard = () => {
     };
 
     const appointmentsForDate = appointments.filter(a =>
-        a.slot_details?.date === selectedDate && a.status !== 'Cancelled'
+        getSlotDetails(a).date === selectedDate && a.status !== 'Cancelled'
     );
     const countApptForDate = (ds) =>
-        appointments.filter(a => a.slot_details?.date === ds && a.status !== 'Cancelled').length;
+        appointments.filter(a => getSlotDetails(a).date === ds && a.status !== 'Cancelled').length;
 
-    const todayAppts = appointments.filter(a => a.slot_details?.date === todayStr && a.status !== 'Cancelled');
+    const todayAppts = appointments.filter(a => getSlotDetails(a).date === todayStr && a.status !== 'Cancelled');
     const pendingTotal = appointments.filter(a => a.status === 'Pending');
     const confirmedToday = todayAppts.filter(a => a.status === 'Confirmed');
 
@@ -371,9 +415,10 @@ export const DoctorDashBoard = () => {
                                 ) : (
                                     <div className="flex flex-col gap-3">
                                         {appointmentsForDate
-                                            .sort((a, b) => (a.slot_details?.time || '').localeCompare(b.slot_details?.time || ''))
+                                            .sort((a, b) => getSlotDetails(a).time.localeCompare(getSlotDetails(b).time))
                                             .map(app => {
-                                                const [tStart, tEnd] = (app.slot_details?.time || ' - ').split(' - ');
+                                                const slotDetails = getSlotDetails(app);
+                                                const [tStart, tEnd] = (slotDetails.time || ' - ').split(' - ');
                                                 return (
                                                     <div key={app.id} className="bg-white border border-slate-200/60 rounded-2xl px-5 py-4 flex items-center gap-4 shadow-sm hover:border-slate-300 transition-all">
                                                         {/* Time */}
@@ -385,7 +430,7 @@ export const DoctorDashBoard = () => {
                                                         {/* Info */}
                                                         <div className="flex-1 min-w-0">
                                                             <p className="font-semibold text-[#0f172a] text-sm truncate">{app.patient_name || 'Anonymous Patient'}</p>
-                                                            <p className="text-xs text-slate-500 font-medium mt-0.5">{app.slot_details?.day}</p>
+                                                            <p className="text-xs text-slate-500 font-medium mt-0.5">{slotDetails.day || slotDetails.date}</p>
                                                         </div>
                                                         {/* Status */}
                                                         <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusBadge(app.status)}`}>
