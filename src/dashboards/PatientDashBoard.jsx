@@ -49,6 +49,9 @@ export const PatientDashBoard = () => {
     const [reviewTarget, setReviewTarget] = useState(null); // appointment being reviewed
     // Set of appointment IDs that the patient has already reviewed
     const [reviewedIds, setReviewedIds] = useState(new Set());
+    // Pagination for bookings
+    const [bookingsPage, setBookingsPage] = useState(1);
+    const BOOKINGS_PER_PAGE = 5;
 
     const Toast = Swal.mixin({
         toast: true,
@@ -475,6 +478,23 @@ export const PatientDashBoard = () => {
         );
     };
 
+    // Pagination for bookings
+    const totalBookings = myAppointments.length;
+    const totalBookingPages = Math.max(
+        1,
+        Math.ceil(totalBookings / BOOKINGS_PER_PAGE)
+    );
+    const bookingsStart = (bookingsPage - 1) * BOOKINGS_PER_PAGE;
+    const bookingsEnd = bookingsStart + BOOKINGS_PER_PAGE;
+    const paginatedAppointments = myAppointments.slice(
+        bookingsStart,
+        bookingsEnd
+    );
+    const showBookingsPagination =
+        totalBookingPages > 1 &&
+        myAppointments.length > BOOKINGS_PER_PAGE &&
+        filteredDoctors.length > 3;
+
     return (
         <div className="min-h-screen bg-[#f8f9fb] py-10 px-4 sm:px-6 lg:px-8 font-sans text-[#1e293b] antialiased">
             <div className="max-w-6xl mx-auto space-y-8">
@@ -503,10 +523,11 @@ export const PatientDashBoard = () => {
                         <button
                             key={i}
                             onClick={() => setActiveTab(i)}
-                            className={`pb-3.5 font-semibold text-sm transition-all relative cursor-pointer flex items-center gap-1.5 ${activeTab === i
+                            className={`pb-3.5 font-semibold text-sm transition-all relative cursor-pointer flex items-center gap-1.5 ${
+                                activeTab === i
                                     ? 'text-[#0f172a] border-b-2 border-[#0f172a]'
                                     : 'text-slate-500 hover:text-slate-700'
-                                }`}
+                            }`}
                         >
                             <span>{tab.icon}</span> {tab.label}
                         </button>
@@ -733,7 +754,7 @@ export const PatientDashBoard = () => {
                             </div>
                         ) : (
                             <div className="flex flex-col gap-3">
-                                {myAppointments.map((app) => {
+                                {paginatedAppointments.map((app) => {
                                     const slotDate = app.slot_details?.date;
                                     const slotTime =
                                         app.slot_details?.start_time ||
@@ -870,6 +891,73 @@ export const PatientDashBoard = () => {
                     </div>
                 )}
             </div>
+
+            {activeTab === 1 && showBookingsPagination && (
+                <div className="flex items-center justify-center gap-2 pt-2">
+                    <button
+                        onClick={() => setBookingsPage(1)}
+                        disabled={bookingsPage === 1}
+                        className={`px-3 py-1 rounded-lg border ${bookingsPage === 1 ? 'bg-slate-100 text-slate-400' : 'bg-white hover:bg-slate-50'}`}
+                    >
+                        First
+                    </button>
+                    <button
+                        onClick={() =>
+                            setBookingsPage((p) => Math.max(1, p - 1))
+                        }
+                        disabled={bookingsPage === 1}
+                        className={`px-3 py-1 rounded-lg border ${bookingsPage === 1 ? 'bg-slate-100 text-slate-300' : 'bg-white hover:bg-slate-50'}`}
+                    >
+                        Prev
+                    </button>
+                    {(() => {
+                        const pages = [];
+                        const maxPagesToShow = 5;
+                        let start = Math.max(
+                            1,
+                            Math.min(
+                                bookingsPage - 2,
+                                totalBookingPages - (maxPagesToShow - 1)
+                            )
+                        );
+                        for (
+                            let i = 0;
+                            i < Math.min(maxPagesToShow, totalBookingPages);
+                            i++
+                        ) {
+                            const p = start + i;
+                            pages.push(p);
+                        }
+                        return pages.map((p) => (
+                            <button
+                                key={p}
+                                onClick={() => setBookingsPage(p)}
+                                className={`px-3 py-1 rounded-lg border ${bookingsPage === p ? 'bg-[#0f172a] text-white' : 'bg-white hover:bg-slate-50 text-slate-700'}`}
+                            >
+                                {p}
+                            </button>
+                        ));
+                    })()}
+                    <button
+                        onClick={() =>
+                            setBookingsPage((p) =>
+                                Math.min(totalBookingPages, p + 1)
+                            )
+                        }
+                        disabled={bookingsPage === totalBookingPages}
+                        className={`px-3 py-1 rounded-lg border ${bookingsPage === totalBookingPages ? 'bg-slate-100 text-slate-300' : 'bg-white hover:bg-slate-50'}`}
+                    >
+                        Next
+                    </button>
+                    <button
+                        onClick={() => setBookingsPage(totalBookingPages)}
+                        disabled={bookingsPage === totalBookingPages}
+                        className={`px-3 py-1 rounded-lg border ${bookingsPage === totalBookingPages ? 'bg-slate-100 text-slate-400' : 'bg-white hover:bg-slate-50'}`}
+                    >
+                        Last
+                    </button>
+                </div>
+            )}
 
             {/* ── Prescription Modal ── */}
             {openModal && selectedRecord && (
