@@ -13,8 +13,6 @@ const toLocalDateStr = (date) => {
     return `${y}-${m}-${d}`;
 };
 
-// ✅ FIX: الدالتين دول بقوا بيشتغلوا على الـ flat fields مباشرة من الـ API
-// مش محتاجين doctor_profile nested object تاني
 const getSpecialtyName = (docItem) => {
     return docItem?.specialty_name || 'Specialist';
 };
@@ -23,7 +21,6 @@ const getSpecialtyId = (docItem) => {
     return docItem?.specialty_id ? Number(docItem.specialty_id) : null;
 };
 
-// ── Reusable Pagination Component ──
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     if (totalPages <= 1) return null;
 
@@ -1115,7 +1112,6 @@ export const PatientDashBoard = () => {
                                     Dr. {selectedDoctorProfile.first_name}{' '}
                                     {selectedDoctorProfile.last_name}
                                 </h3>
-                                {/* ✅ FIX: specialty_name flat من selectedDoctorProfile مباشرة */}
                                 <span className="text-xs text-slate-500 font-semibold">
                                     {selectedDoctorProfile.specialty_name || 'Specialist'}
                                 </span>
@@ -1128,7 +1124,6 @@ export const PatientDashBoard = () => {
                                     <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide mb-1">
                                         Consultation Fee
                                     </p>
-                                    {/* ✅ FIX: consultation_fee flat من selectedDoctorProfile مباشرة */}
                                     <p className="text-lg font-bold text-[#0f172a]">
                                         {Number(selectedDoctorProfile.consultation_fee) || 250}
                                     </p>
@@ -1148,7 +1143,6 @@ export const PatientDashBoard = () => {
                                 </div>
                             </div>
 
-                            {/* ✅ FIX: clinic_address flat من selectedDoctorProfile مباشرة */}
                             {selectedDoctorProfile.clinic_address && (
                                 <div>
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
