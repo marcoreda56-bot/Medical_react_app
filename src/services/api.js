@@ -26,8 +26,6 @@
         getUpcoming: () => axiosInstance.get('/appointments/upcoming/'),
         getPast: () => axiosInstance.get('/appointments/past/'),
         book: (data) => axiosInstance.post('/appointments/book/', data),
-        getAppointmentDetail: (id) =>
-            axiosInstance.get(`/appointments/${id}/`),
         
         approveAppointment: (id, doctorNotes = '') =>
             axiosInstance.post(`/appointments/${id}/approve/`, { doctor_notes: doctorNotes }),
