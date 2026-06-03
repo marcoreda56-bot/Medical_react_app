@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 export const Navbar = () => {
     const { currentUser, userRole, userName, logout } = useAuth();
-    const { t, toggleLanguage, language } = useLanguage();
+    const { t, toggleLanguage } = useLanguage();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -31,6 +31,14 @@ export const Navbar = () => {
                         CarePulse 🩺
                     </span>
                     <div className="flex items-center gap-4">
+                        <button
+                            type="button"
+                            onClick={toggleLanguage}
+                            className="px-3 py-2 border border-[#006d77]/20 rounded-lg text-sm font-bold text-[#006d77] hover:bg-[#006d77]/10 transition-all"
+                            aria-label={t('nav.languageLabel')}
+                        >
+                            {t('nav.changeLanguage')}
+                        </button>
                         <button
                             onClick={() => navigate('/login')}
                             className="font-bold text-gray-600 hover:text-[#006d77]"
@@ -61,7 +69,7 @@ export const Navbar = () => {
                             CarePulse 🩺
                         </span>
                         <span className="bg-white/20 text-[10px] px-2 py-0.5 rounded-md uppercase font-extrabold">
-                            {userRole}
+                            {t(`roles.${userRole}`, userRole)}
                         </span>
                     </div>
 
@@ -71,16 +79,25 @@ export const Navbar = () => {
                                 onClick={() => navigate('/doctor')}
                                 className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-semibold transition-all"
                             >
-                                Dashboard
+                                {t('nav.panel')}
                             </button>
                         )}
 
                         <span className="text-sm font-medium hidden sm:block">
-                            Hi,{' '}
+                            {t('nav.hello')},{' '}
                             <strong className="text-teal-100">
                                 {userName}
                             </strong>
                         </span>
+
+                        <button
+                            type="button"
+                            onClick={toggleLanguage}
+                            className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold transition-all"
+                            aria-label={t('nav.languageLabel')}
+                        >
+                            {t('nav.changeLanguage')}
+                        </button>
 
                         <button
                             onClick={() => navigate('/profile')}

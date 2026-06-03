@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
+import { useLanguage } from '../context/LanguageContext';
 import Swal from 'sweetalert2';
 
 const AppointmentDetail = () => {
@@ -19,10 +20,16 @@ const AppointmentDetail = () => {
     const navigate = useNavigate();
     const { userRole } = useAuth();
     const { sendNotification } = useNotifications();
+    const { t } = useLanguage();
     const [appointment, setAppointment] = useState(null);
     const [loading, setLoading] = useState(true);
     const [diagnosis, setDiagnosis] = useState('');
     const [prescription, setPrescription] = useState('');
+
+    const translateStatus = (status) =>
+        t(`statuses.${String(status || '').toLowerCase()}`, status);
+
+    const translateDay = (day) => t(`days.${day}`, day);
 
     useEffect(() => {
         const load = async () => {
@@ -41,15 +48,15 @@ const AppointmentDetail = () => {
             if (appointment?.patientId)
                 await sendNotification(
                     appointment.patientId,
-                    'Appointment approved',
-                    'Your appointment was approved.',
+                    t('appointmentDetail.notificationApprovedTitle'),
+                    t('appointmentDetail.notificationApprovedBody'),
                     { appointmentId: id }
                 );
-            Swal.fire('Approved', '', 'success');
+            Swal.fire(t('appointmentDetail.approved'), '', 'success');
             navigate(userRole === 'doctor' ? '/doctor' : '/patient');
         } catch (err) {
             console.error(err);
-            Swal.fire('Failed', '', 'error');
+            Swal.fire(t('appointmentDetail.failed'), '', 'error');
         }
     };
 
@@ -60,21 +67,25 @@ const AppointmentDetail = () => {
             if (appointment?.patientId)
                 await sendNotification(
                     appointment.patientId,
-                    'Appointment cancelled',
-                    'Your appointment was cancelled.',
+                    t('appointmentDetail.notificationCancelledTitle'),
+                    t('appointmentDetail.notificationCancelledBody'),
                     { appointmentId: id }
                 );
-            Swal.fire('Cancelled', '', 'success');
+            Swal.fire(t('appointmentDetail.cancelled'), '', 'success');
             navigate(userRole === 'doctor' ? '/doctor' : '/patient');
         } catch (err) {
             console.error(err);
-            Swal.fire('Failed', '', 'error');
+            Swal.fire(t('appointmentDetail.failed'), '', 'error');
         }
     };
 
     const handleComplete = async () => {
         if (!diagnosis.trim() || !prescription.trim()) {
-            Swal.fire('Please fill diagnosis and prescription', '', 'warning');
+            Swal.fire(
+                t('appointmentDetail.fillDiagnosisPrescription'),
+                '',
+                'warning'
+            );
             return;
         }
         try {
@@ -90,28 +101,28 @@ const AppointmentDetail = () => {
             if (appointment?.patientId)
                 await sendNotification(
                     appointment.patientId,
-                    'Visit completed',
-                    'Your visit was completed and prescription is available.',
+                    t('appointmentDetail.notificationCompletedTitle'),
+                    t('appointmentDetail.notificationCompletedBody'),
                     { appointmentId: id }
                 );
-            Swal.fire('Completed', '', 'success');
+            Swal.fire(t('appointmentDetail.completed'), '', 'success');
             navigate(userRole === 'doctor' ? '/doctor' : '/patient');
         } catch (err) {
             console.error(err);
-            Swal.fire('Failed', '', 'error');
+            Swal.fire(t('appointmentDetail.failed'), '', 'error');
         }
     };
 
     if (loading)
         return (
             <Container sx={{ mt: 4 }}>
-                <Typography>Loading...</Typography>
+                <Typography>{t('appointmentDetail.loading')}</Typography>
             </Container>
         );
     if (!appointment)
         return (
             <Container sx={{ mt: 4 }}>
-                <Typography>No appointment found.</Typography>
+                <Typography>{t('appointmentDetail.notFound')}</Typography>
             </Container>
         );
 
@@ -119,20 +130,24 @@ const AppointmentDetail = () => {
         <Container maxWidth="md" sx={{ mt: 4 }}>
             <Paper sx={{ p: 3 }} elevation={3}>
                 <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2 }}>
-                    Appointment Details
+                    {t('appointmentDetail.title')}
                 </Typography>
                 <Typography>
-                    <strong>Patient:</strong> {appointment.patientName}
+                    <strong>{t('appointmentDetail.patient')}:</strong>{' '}
+                    {appointment.patientName}
                 </Typography>
                 <Typography>
-                    <strong>Doctor:</strong> {appointment.doctorName}
+                    <strong>{t('appointmentDetail.doctor')}:</strong>{' '}
+                    {appointment.doctorName}
                 </Typography>
                 <Typography>
-                    <strong>Day / Time:</strong> {appointment.day}{' '}
+                    <strong>{t('appointmentDetail.dayTime')}:</strong>{' '}
+                    {translateDay(appointment.day)}{' '}
                     {appointment.time}
                 </Typography>
                 <Typography>
-                    <strong>Status:</strong> {appointment.status}
+                    <strong>{t('appointmentDetail.status')}:</strong>{' '}
+                    {translateStatus(appointment.status)}
                 </Typography>
 
                 <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
@@ -144,14 +159,14 @@ const AppointmentDetail = () => {
                                     color="primary"
                                     onClick={handleApprove}
                                 >
-                                    Approve
+                                    {t('appointmentDetail.approve')}
                                 </Button>
                                 <Button
                                     variant="outlined"
                                     color="error"
                                     onClick={handleCancel}
                                 >
-                                    Reject / Cancel
+                                    {t('appointmentDetail.rejectCancel')}
                                 </Button>
                             </>
                         )}
@@ -163,19 +178,21 @@ const AppointmentDetail = () => {
                                 color="error"
                                 onClick={handleCancel}
                             >
-                                Cancel Appointment
+                                {t('appointmentDetail.cancelAppointment')}
                             </Button>
                         )}
                 </Box>
 
                 {userRole === 'doctor' && appointment.status === 'Approved' && (
                     <Box sx={{ mt: 3 }}>
-                        <Typography variant="h6">Complete Visit</Typography>
+                        <Typography variant="h6">
+                            {t('appointmentDetail.completeVisit')}
+                        </Typography>
                         <TextField
                             fullWidth
                             multiline
                             rows={3}
-                            label="Diagnosis"
+                            label={t('appointmentDetail.diagnosis')}
                             value={diagnosis}
                             onChange={(e) => setDiagnosis(e.target.value)}
                             sx={{ mt: 1, mb: 1 }}
@@ -184,7 +201,7 @@ const AppointmentDetail = () => {
                             fullWidth
                             multiline
                             rows={3}
-                            label="Prescription"
+                            label={t('appointmentDetail.prescription')}
                             value={prescription}
                             onChange={(e) => setPrescription(e.target.value)}
                             sx={{ mt: 1, mb: 1 }}
@@ -194,7 +211,7 @@ const AppointmentDetail = () => {
                             color="success"
                             onClick={handleComplete}
                         >
-                            Save & Complete
+                            {t('appointmentDetail.saveComplete')}
                         </Button>
                     </Box>
                 )}

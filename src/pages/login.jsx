@@ -142,6 +142,8 @@ const Login = () => {
                             size="large"
                             width="100%"
                             locale="en"
+                            hl="en"
+                            containerProps={{ 'data-hl': 'en' }}
                         />
                         
                     </div>

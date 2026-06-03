@@ -1,14 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
-const stats = [
-    { label: 'Doctors', value: '120+' },
-    { label: 'Specialties', value: '35+' },
-    { label: 'Patient visits', value: '18k' },
-];
+import { useLanguage } from '../context/LanguageContext';
 
 const features = [
     {
+        key: 'findDoctor',
         icon: (
             <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -25,10 +21,9 @@ const features = [
                 />
             </svg>
         ),
-        title: 'Find the right doctor',
-        text: 'Browse specialties, doctor profiles, clinic notes, and available appointment slots.',
     },
     {
+        key: 'bookFast',
         icon: (
             <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -45,10 +40,9 @@ const features = [
                 />
             </svg>
         ),
-        title: 'Book in minutes',
-        text: 'Choose a day and time, then track request status from your patient dashboard.',
     },
     {
+        key: 'payments',
         icon: (
             <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -65,14 +59,14 @@ const features = [
                 />
             </svg>
         ),
-        title: 'Simple payments',
-        text: 'Patients can pay appointment fees from their booking history.',
     },
 ];
 
 const Landing = () => {
     const navigate = useNavigate();
     const { currentUser, userRole } = useAuth();
+    const { t, language } = useLanguage();
+    const isRtl = language === 'ar';
 
     const dashboardPath =
         userRole === 'doctor'
@@ -81,12 +75,28 @@ const Landing = () => {
               ? '/admin'
               : '/patient';
 
+    const stats = [
+        { label: t('landing.stats.doctors'), value: '120+' },
+        { label: t('landing.stats.specialties'), value: '35+' },
+        { label: t('landing.stats.patientVisits'), value: '18k' },
+    ];
+
     return (
-        <div className="bg-[#f6f8fb] min-h-screen font-sans text-left">
+        <div
+            className={`bg-[#f6f8fb] min-h-screen font-sans ${
+                isRtl ? 'text-right' : 'text-left'
+            }`}
+        >
             <div className="min-h-none md:min-h-[76vh] flex items-center py-12 md:py-16 bg-gradient-to-br from-[#006d77]/95 to-[#13547a]/90 bg-cover bg-center text-white relative">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
-                        <div className="md:col-span-7 flex flex-col items-start text-left">
+                        <div
+                            className={`md:col-span-7 flex flex-col ${
+                                isRtl
+                                    ? 'items-end text-right'
+                                    : 'items-start text-left'
+                            }`}
+                        >
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 text-white text-xs font-bold mb-6">
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
@@ -102,17 +112,15 @@ const Landing = () => {
                                         d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z"
                                     />
                                 </svg>
-                                Trusted medical booking portal
+                                {t('landing.badge')}
                             </div>
 
                             <h1 className="text-4xl md:text-7xl font-black max-w-[720px] tracking-tight leading-none mb-4">
-                                CarePulse
+                                {t('landing.headline')}
                             </h1>
 
                             <p className="text-lg md:text-xl text-white/85 max-w-[700px] mb-8 font-normal leading-relaxed">
-                                Book appointments, view doctor details, manage
-                                prescriptions, and pay visit fees from one clean
-                                healthcare workspace.
+                                {t('landing.subtitle')}
                             </p>
 
                             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
@@ -127,24 +135,16 @@ const Landing = () => {
                                     className="px-6 py-3 bg-[#ef8354] hover:bg-[#d87245] text-white font-bold rounded-xl shadow-md transition-all transform active:scale-98 cursor-pointer text-center"
                                 >
                                     {currentUser
-                                        ? 'Make An Appointment'
-                                        : 'Create Account'}
+                                        ? t('landing.makeAppointment')
+                                        : t('landing.createAccount')}
                                 </button>
-                                {/* <button
-                                    onClick={() =>
-                                        navigate(currentUser ? '/' : '/login')
-                                    }
-                                    className="px-6 py-3 border border-white/70 hover:border-white hover:bg-white/10 text-white font-bold rounded-xl transition-all transform active:scale-98 cursor-pointer text-center"
-                                >
-                                    {currentUser ? 'View Home' : 'Sign In'}
-                                </button> */}
                             </div>
                         </div>
 
                         <div className="md:col-span-5 w-full">
                             <div className="p-6 rounded-2xl bg-white/95 text-[#102a43] border border-white/20 shadow-xl shadow-black/5">
                                 <span className="text-xs font-black uppercase tracking-wider text-[#006d77]">
-                                    Today at CarePulse
+                                    {t('landing.statsTitle')}
                                 </span>
                                 <div className="space-y-4 mt-4">
                                     {stats.map((item) => (
@@ -171,17 +171,21 @@ const Landing = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {features.map((feature) => (
                         <div
-                            key={feature.title}
-                            className="p-6 bg-white border border-gray-100 rounded-2xl shadow-xs flex flex-col items-start"
+                            key={feature.key}
+                            className={`p-6 bg-white border border-gray-100 rounded-2xl shadow-xs flex flex-col ${
+                                isRtl ? 'items-end' : 'items-start'
+                            }`}
                         >
                             <div className="w-12 h-12 rounded-xl bg-[#006d77] text-white flex items-center justify-center mb-4">
                                 {feature.icon}
                             </div>
                             <h3 className="text-lg font-black text-gray-900 mb-2">
-                                {feature.title}
+                                {t(
+                                    `landing.features.${feature.key}.title`
+                                )}
                             </h3>
                             <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                                {feature.text}
+                                {t(`landing.features.${feature.key}.text`)}
                             </p>
                         </div>
                     ))}
