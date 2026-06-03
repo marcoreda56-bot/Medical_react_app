@@ -89,6 +89,10 @@ const translations = {
           text: 'Patients can pay appointment fees from their booking history.',
         },
       },
+      footer: {
+        text: 'CarePulse keeps patients, doctors, and appointments connected in one reliable medical portal.',
+        copyright: '© 2026 CarePulse. All rights reserved.',
+      },
     },
     profile: {
       title: 'My Profile Settings',
@@ -370,6 +374,10 @@ const translations = {
           title: 'مدفوعات بسيطة',
           text: 'يمكن للمرضى دفع رسوم المواعيد من سجل حجوزاتهم.',
         },
+      },
+      footer: {
+        text: 'يربط CarePulse المرضى والأطباء والمواعيد في بوابة طبية موثوقة واحدة.',
+        copyright: '© 2026 CarePulse. جميع الحقوق محفوظة.',
       },
     },
     profile: {

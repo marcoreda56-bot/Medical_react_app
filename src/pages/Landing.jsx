@@ -191,6 +191,29 @@ const Landing = () => {
                     ))}
                 </div>
             </div>
+
+            <footer className="border-t border-gray-200 bg-white">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div
+                        className={`flex flex-col md:flex-row gap-4 md:items-center md:justify-between ${
+                            isRtl ? 'md:flex-row-reverse' : ''
+                        }`}
+                    >
+                        <div>
+                            <h2 className="text-lg font-black text-[#006d77]">
+                                CarePulse
+                            </h2>
+                            <p className="mt-1 text-sm font-medium text-gray-500 max-w-xl">
+                                {t('landing.footer.text')}
+                            </p>
+                        </div>
+
+                        <p className="text-sm font-semibold text-gray-500">
+                            {t('landing.footer.copyright')}
+                        </p>
+                    </div>
+                </div>
+            </footer>
         </div>
     );
 };
