@@ -1,4 +1,5 @@
 import { Edit2, Trash2, Plus } from 'lucide-react';
+import { useLanguage } from '../../../context/LanguageContext';
 
 export const SpecialtiesPanel = ({
   specialties,
@@ -10,15 +11,16 @@ export const SpecialtiesPanel = ({
   onCancel,
   onDelete,
 }) => {
+  const { t } = useLanguage();
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-slate-800 mb-4">Medical Specialties Management</h3>
+        <h3 className="text-lg font-bold text-slate-800 mb-4">{t('admin.panel.specialtiesPanel.title')}</h3>
         
         {/* Input Form Fields Box */}
         <div className="flex flex-col sm:flex-row gap-3 items-end bg-slate-50/50 p-4 border border-slate-100 rounded-xl">
           <div className="w-full sm:max-w-xs flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-500">Specialty Name</label>
+            <label className="text-xs font-semibold text-slate-500">{t('admin.panel.specialtiesPanel.name')}</label>
             <input
               type="text"
               value={specialtyForm.name}
@@ -34,14 +36,14 @@ export const SpecialtiesPanel = ({
               className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors shadow-sm whitespace-nowrap"
             >
               <Plus size={16} />
-              <span>{editingSpecialty ? 'Save Specialty' : 'Add Specialty'}</span>
+              <span>{editingSpecialty ? t('admin.panel.specialtiesPanel.save') : t('admin.panel.specialtiesPanel.add')}</span>
             </button>
             {editingSpecialty && (
               <button
                 onClick={onCancel}
                 className="w-full sm:w-auto bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors"
               >
-                Cancel
+                {t('admin.panel.specialtiesPanel.cancel')}
               </button>
             )}
           </div>
@@ -61,7 +63,7 @@ export const SpecialtiesPanel = ({
             {specialties.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-6 py-10 text-center text-slate-400 font-medium">
-                  No specialties configured yet.
+                  {t('admin.panel.specialtiesPanel.noSpecialties')}
                 </td>
               </tr>
             ) : (

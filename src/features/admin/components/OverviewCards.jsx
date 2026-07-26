@@ -1,9 +1,12 @@
+import { useLanguage } from '../../../context/LanguageContext';
+
 export const OverviewCards = ({ stats }) => {
+  const { t } = useLanguage();
   const items = [
-    { title: 'Users', value: stats.totalUsers, borderColor: 'border-l-[#388e3c]', textColor: 'text-[#388e3c]' },
-    { title: 'Doctors', value: stats.totalDoctors, borderColor: 'border-l-[#1976d2]', textColor: 'text-[#1976d2]' },
-    { title: 'Pending Approvals', value: stats.pendingDoctors, borderColor: 'border-l-[#f57c00]', textColor: 'text-[#f57c00]' },
-    { title: 'Appointments', value: stats.totalAppointments, borderColor: 'border-l-[#7b1fa2]', textColor: 'text-[#7b1fa2]' },
+    { title: t('admin.panel.overviewCards.users'), value: stats.totalUsers, borderColor: 'border-l-[#388e3c]', textColor: 'text-[#388e3c]' },
+    { title: t('admin.panel.overviewCards.doctors'), value: stats.totalDoctors, borderColor: 'border-l-[#1976d2]', textColor: 'text-[#1976d2]' },
+    { title: t('admin.panel.overviewCards.pendingApprovals'), value: stats.pendingDoctors, borderColor: 'border-l-[#f57c00]', textColor: 'text-[#f57c00]' },
+    { title: t('admin.panel.overviewCards.appointments'), value: stats.totalAppointments, borderColor: 'border-l-[#7b1fa2]', textColor: 'text-[#7b1fa2]' },
   ];
 
   return (

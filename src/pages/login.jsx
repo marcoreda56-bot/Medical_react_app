@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Link, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { HospitalIcon } from 'lucide-react';
@@ -7,6 +8,7 @@ import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
     const { login, loginWithGoogle } = useAuth();
+    const { t } = useLanguage();
     const navigate = useNavigate();
     
     const [email, setEmail] = useState('');
@@ -30,11 +32,11 @@ const Login = () => {
 
     const validateForm = () => {
         if (!email || !email.includes('@')) {
-            Toast.fire({ icon: 'error', title: 'Please enter a valid email address.' });
+            Toast.fire({ icon: 'error', title: t('login.toast.invalidEmail') });
             return false;
         }
         if (password.length < 6) {
-            Toast.fire({ icon: 'error', title: 'Password must be at least 6 characters long.' });
+            Toast.fire({ icon: 'error', title: t('login.toast.invalidPassword') });
             return false;
         }
         return true;
@@ -47,20 +49,20 @@ const Login = () => {
 
         try {
             const user = await login(email, password);
-            Toast.fire({ icon: 'success', title: 'Logged in successfully!' });
+            Toast.fire({ icon: 'success', title: t('login.toast.success') });
             redirectByRole(user.role);
         } catch (err) {
-            Toast.fire({ icon: 'error', title: 'Invalid credentials or server error.' });
+            Toast.fire({ icon: 'error', title: t('login.toast.invalidCredentials') });
         }
     };
 
     const handleGoogleSuccess = async ({ credential }) => {
         try {
             const user = await loginWithGoogle(credential, selectedRole);
-            Toast.fire({ icon: 'success', title: 'Google login successful!' });
+            Toast.fire({ icon: 'success', title: t('login.toast.success') });
             redirectByRole(user.role);
         } catch (err) {
-            Toast.fire({ icon: 'error', title: 'Google login failed.' });
+            Toast.fire({ icon: 'error', title: t('login.googleFailed') });
         }
     };
 
@@ -73,9 +75,9 @@ const Login = () => {
             >
                 <div className="absolute inset-0 bg-teal-900 bg-opacity-70" />
                 <div className="relative px-12 text-white max-w-lg">
-                    <h1 className="text-5xl font-bold mb-6">Medical Portal</h1>
+                    <h1 className="text-5xl font-bold mb-6">{t('login.medicalPortal')}</h1>
                     <p className="text-xl opacity-90 leading-relaxed">
-                        Empowering healthcare teams and patient coordination through advanced real-time medical insights.
+                        {t('login.empowering')}
                     </p>
                 </div>
             </div>
@@ -87,12 +89,12 @@ const Login = () => {
                         <div className="bg-teal-50 p-4 rounded-full border-2 border-teal-700 mb-4">
                             <HospitalIcon className="text-teal-700 w-10 h-10" />
                         </div>
-                        <h2 className="text-3xl font-extrabold text-teal-800">Welcome Back</h2>
+                        <h2 className="text-3xl font-extrabold text-teal-800">{t('login.title')}</h2>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Email Address</label>
+                            <label className="block text-sm font-medium text-gray-700">{t('login.email')}</label>
                             <input
                                 type="email"
                                 value={email}
@@ -101,7 +103,7 @@ const Login = () => {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Password</label>
+                            <label className="block text-sm font-medium text-gray-700">{t('login.password')}</label>
                             <input
                                 type="password"
                                 value={password}
@@ -113,31 +115,31 @@ const Login = () => {
                             type="submit"
                             className="w-full py-4 bg-teal-700 hover:bg-teal-900 text-white font-bold rounded-xl transition duration-300"
                         >
-                            Sign In
+                            {t('login.signIn')}
                         </button>
                     </form>
 
                     <div className="flex items-center my-5 gap-3">
                         <hr className="flex-1 border-gray-200" />
-                        <span className="text-xs text-gray-400 uppercase tracking-wide">or</span>
+                        <span className="text-xs text-gray-400 uppercase tracking-wide">{t('login.or')}</span>
                         <hr className="flex-1 border-gray-200" />
                     </div>
 
                     <div className="flex justify-center gap-6 mb-4">
                         <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
                             <input type="radio" value="patient" checked={selectedRole === 'patient'} onChange={(e) => setSelectedRole(e.target.value)} />
-                            Patient
+                            {t('login.patient')}
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
                             <input type="radio" value="doctor" checked={selectedRole === 'doctor'} onChange={(e) => setSelectedRole(e.target.value)} />
-                            Doctor
+                            {t('login.doctor')}
                         </label>
                     </div>
 
                     <div className="flex justify-center">
                         <GoogleLogin
                             onSuccess={handleGoogleSuccess}
-                            onError={() => Toast.fire({ icon: 'error', title: 'Google login failed' })}
+                            onError={() => Toast.fire({ icon: 'error', title: t('login.googleFailed') })}
                             theme="outline"
                             size="large"
                             width="100%"
@@ -149,9 +151,9 @@ const Login = () => {
                     </div>
 
                     <p className="text-center text-sm text-gray-500 mt-6">
-                        Don't have an account?{' '}
+                        {t('login.noAccount')}{' '}
                         <Link to="/register" className="text-teal-700 font-bold hover:underline">
-                            Create Account
+                            {t('login.createAccount')}
                         </Link>
                     </p>
                 </div>

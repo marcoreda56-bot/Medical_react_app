@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import axiosInstance from '../api/axios';
+import { useLanguage } from '../context/LanguageContext';
 import Swal from 'sweetalert2';
 
 /**
@@ -37,6 +38,7 @@ export const ReviewModal = ({
     const [hovered, setHovered] = useState(0);
     const [comment, setComment] = useState('');
     const [loading, setLoading] = useState(false);
+    const { t } = useLanguage();
 
     if (!isOpen || !appointment) return null;
 
@@ -56,8 +58,8 @@ export const ReviewModal = ({
         if (rating === 0) {
             Swal.fire({
                 icon: 'warning',
-                title: 'Please select a rating',
-                text: 'Choose between 1 and 5 stars before submitting.',
+                title: t('reviewModal.selectRating'),
+                text: t('reviewModal.selectRatingText'),
                 confirmButtonColor: '#0f172a',
             });
             return;
@@ -72,8 +74,8 @@ export const ReviewModal = ({
             });
             Swal.fire({
                 icon: 'success',
-                title: 'Review submitted!',
-                text: 'Thank you for your feedback.',
+                title: t('reviewModal.reviewSubmitted'),
+                text: t('reviewModal.thankFeedback'),
                 timer: 1800,
                 showConfirmButton: false,
             });
@@ -84,10 +86,10 @@ export const ReviewModal = ({
                 err.response?.data?.non_field_errors?.[0] ||
                 err.response?.data?.detail ||
                 err.response?.data?.error ||
-                'Failed to submit review. Please try again.';
+                t('reviewModal.failedSubmit');
             Swal.fire({
                 icon: 'error',
-                title: 'Submission failed',
+                title: t('reviewModal.submissionFailed'),
                 text: msg,
                 confirmButtonColor: '#0f172a',
             });
@@ -96,7 +98,7 @@ export const ReviewModal = ({
         }
     };
 
-    const LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+    const LABELS = ['', t('reviewModal.poor'), t('reviewModal.fair'), t('reviewModal.good'), t('reviewModal.veryGood'), t('reviewModal.excellent')];
     const active = hovered || rating;
 
     const fmtDate = (ds) => {
@@ -115,7 +117,7 @@ export const ReviewModal = ({
                 {/* Header */}
                 <div className="bg-gradient-to-r from-[#0f172a] to-[#1e293b] px-6 py-5">
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">
-                        Rate your visit
+                        {t('reviewModal.rateVisit')}
                     </p>
                     <h3 className="text-lg font-bold text-white">
                         Dr. {appointment.doctor_name}
@@ -134,7 +136,7 @@ export const ReviewModal = ({
                     {/* Star Rating */}
                     <div className="space-y-3">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block">
-                            Your Rating
+                            {t('reviewModal.yourRating')}
                         </label>
                         <div
                             className="flex gap-1.5"
@@ -197,16 +199,16 @@ export const ReviewModal = ({
                     {/* Comment */}
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block">
-                            Comment{' '}
+                            {t('reviewModal.comment')}{' '}
                             <span className="text-slate-300 font-normal normal-case tracking-normal">
-                                (optional)
+                                ({t('reviewModal.optional')})
                             </span>
                         </label>
                         <textarea
                             rows={4}
                             value={comment}
                             onChange={(e) => setComment(e.target.value)}
-                            placeholder="Share your experience with this doctor..."
+                            placeholder={t('reviewModal.shareExperience')}
                             maxLength={500}
                             className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:ring-1 focus:ring-slate-300 transition-all resize-none leading-relaxed"
                         />
@@ -222,14 +224,14 @@ export const ReviewModal = ({
                             onClick={handleClose}
                             className="px-5 py-2.5 bg-slate-50 text-slate-600 font-semibold rounded-xl text-xs hover:bg-slate-100 cursor-pointer transition-all border border-slate-200"
                         >
-                            Cancel
+                            {t('reviewModal.cancel')}
                         </button>
                         <button
                             type="submit"
                             disabled={loading || rating === 0}
                             className="px-5 py-2.5 bg-[#0f172a] text-white font-bold rounded-xl text-xs hover:bg-slate-800 cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm min-w-[100px]"
                         >
-                            {loading ? 'Submitting…' : 'Submit Review'}
+                            {loading ? t('reviewModal.submitting') : t('reviewModal.submitReview')}
                         </button>
                     </div>
                 </form>

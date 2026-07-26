@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { appointmentAPI, doctorAPI } from '../services/api';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { DoctorReviews } from '../components/DoctorReviews';
 
 const toLocalDateStr = (date) => {
@@ -62,6 +63,7 @@ const normalizeAppointment = (appointment) => ({
 export const DoctorDashBoard = () => {
     const [activeTab, setActiveTab] = useState('appointments');
     const [loading, setLoading] = useState(false);
+    const { t } = useLanguage();
     const [slots, setSlots] = useState([]);
     const [appointments, setAppointments] = useState([]);
     const [selectedDate, setSelectedDate] = useState(() =>
@@ -518,18 +520,17 @@ export const DoctorDashBoard = () => {
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-7">
                         <div>
                             <h1 className="text-2xl font-bold text-[#0f172a] tracking-tight">
-                                Clinical Operations
+                                {t('doctorDashboard.clinicalOps')}
                             </h1>
                             <p className="text-slate-500 text-sm mt-1 font-medium">
-                                Manage your schedule, appointments, and patient
-                                records.
+                                {t('doctorDashboard.manageSchedule')}
                             </p>
                         </div>
                         <button
                             onClick={loadDashboardData}
                             className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-all text-xs cursor-pointer shadow-sm"
                         >
-                            {loading ? 'Syncing…' : '↻ Sync Workspace'}
+                            {loading ? t('doctorDashboard.syncing') : t('doctorDashboard.syncWorkspace')}
                         </button>
                     </div>
 
@@ -545,12 +546,12 @@ export const DoctorDashBoard = () => {
                                 }`}
                             >
                                 {tab === 'history'
-                                    ? 'Case Archive'
+                                    ? t('doctorDashboard.caseArchive')
                                     : tab === 'appointments'
-                                      ? 'Appointments'
+                                      ? t('doctorDashboard.appointments')
                                       : tab === 'reviews'
-                                        ? 'Reviews'
-                                        : 'Schedule'}
+                                        ? t('doctorDashboard.reviews')
+                                        : t('doctorDashboard.schedule')}
                             </button>
                         ))}
                     </div>
@@ -561,15 +562,15 @@ export const DoctorDashBoard = () => {
                             <div className="grid grid-cols-3 gap-4">
                                 {[
                                     {
-                                        label: "Today's Appointments",
+                                        label: t('doctorDashboard.todaysAppointments'),
                                         value: todayAppts.length,
                                     },
                                     {
-                                        label: 'Awaiting Approval',
+                                        label: t('doctorDashboard.awaitingApproval'),
                                         value: pendingTotal.length,
                                     },
                                     {
-                                        label: 'Confirmed Today',
+                                        label: t('doctorDashboard.confirmedToday'),
                                         value: confirmedToday.length,
                                     },
                                 ].map((s) => (
@@ -605,8 +606,7 @@ export const DoctorDashBoard = () => {
                                 {appointmentsForDate.length === 0 ? (
                                     <div className="bg-white border border-slate-200/60 rounded-2xl py-16 text-center shadow-sm">
                                         <p className="text-slate-500 text-sm font-semibold">
-                                            No appointments scheduled for this
-                                            day.
+                                            {t('doctorDashboard.noAppointmentsDay')}
                                         </p>
                                     </div>
                                 ) : (
@@ -671,7 +671,7 @@ export const DoctorDashBoard = () => {
                                                                         }
                                                                         className="px-3 py-1.5 bg-[#0f172a] text-white font-semibold rounded-xl hover:bg-slate-800 text-xs transition-all cursor-pointer"
                                                                     >
-                                                                        Accept
+                                                                        {t('doctorDashboard.accept')}
                                                                     </button>
                                                                     <button
                                                                         type="button"
@@ -682,7 +682,7 @@ export const DoctorDashBoard = () => {
                                                                         }
                                                                         className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 font-semibold rounded-xl hover:bg-slate-50 text-xs transition-all cursor-pointer"
                                                                     >
-                                                                        Decline
+                                                                        {t('doctorDashboard.decline')}
                                                                     </button>
                                                                 </>
                                                             )}
@@ -698,7 +698,7 @@ export const DoctorDashBoard = () => {
                                                                         }
                                                                         className="px-3 py-1.5 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 text-xs transition-all cursor-pointer"
                                                                     >
-                                                                        Complete
+                                                                        {t('doctorDashboard.complete')}
                                                                     </button>
                                                                     <button
                                                                         type="button"
@@ -709,7 +709,7 @@ export const DoctorDashBoard = () => {
                                                                         }
                                                                         className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 font-semibold rounded-xl hover:bg-slate-50 text-xs transition-all cursor-pointer"
                                                                     >
-                                                                        Cancel
+                                                                        {t('doctorDashboard.cancel')}
                                                                     </button>
                                                                 </>
                                                             )}
@@ -728,7 +728,7 @@ export const DoctorDashBoard = () => {
                             {/* ── Form Panel ── */}
                             <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm h-fit space-y-4">
                                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                    Configure Shift
+                                    {t('doctorDashboard.configureShift')}
                                 </h3>
                                 <form
                                     onSubmit={handleGenerateShift}
@@ -737,7 +737,7 @@ export const DoctorDashBoard = () => {
                                 >
                                     <div className="space-y-1">
                                         <label className="text-xs text-slate-600 font-semibold">
-                                            Date
+                                            {t('doctorDashboard.date')}
                                         </label>
                                         <input
                                             type="date"
@@ -754,7 +754,7 @@ export const DoctorDashBoard = () => {
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs text-slate-600 font-semibold">
-                                            Start Time
+                                            {t('doctorDashboard.startTime')}
                                         </label>
                                         <input
                                             type="time"
@@ -770,7 +770,7 @@ export const DoctorDashBoard = () => {
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs text-slate-600 font-semibold">
-                                            Working Hours
+                                            {t('doctorDashboard.workingHours')}
                                         </label>
                                         <select
                                             value={shiftForm.workHours}
@@ -783,7 +783,7 @@ export const DoctorDashBoard = () => {
                                             className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none cursor-pointer bg-white text-slate-700 font-medium"
                                         >
                                             <option value="">
-                                                Select hours
+                                                {t('doctorDashboard.selectHours')}
                                             </option>
                                             {[...Array(8)].map((_, i) => (
                                                 <option
@@ -791,14 +791,14 @@ export const DoctorDashBoard = () => {
                                                     value={i + 1}
                                                 >
                                                     {i + 1}{' '}
-                                                    {i === 0 ? 'Hour' : 'Hours'}
+                                                    {i === 0 ? t('doctorDashboard.hour') : t('doctorDashboard.hours')}
                                                 </option>
                                             ))}
                                         </select>
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs text-slate-600 font-semibold">
-                                            Slot Duration
+                                            {t('doctorDashboard.slotDuration')}
                                         </label>
                                         <select
                                             value={shiftForm.duration}
@@ -811,16 +811,16 @@ export const DoctorDashBoard = () => {
                                             className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none cursor-pointer bg-white text-slate-700 font-medium"
                                         >
                                             <option value="15">
-                                                15 Minutes
+                                                {t('doctorDashboard.minutes15')}
                                             </option>
                                             <option value="30">
-                                                30 Minutes
+                                                {t('doctorDashboard.minutes30')}
                                             </option>
                                             <option value="45">
-                                                45 Minutes
+                                                {t('doctorDashboard.minutes45')}
                                             </option>
                                             <option value="60">
-                                                60 Minutes
+                                                {t('doctorDashboard.minutes60')}
                                             </option>
                                         </select>
                                     </div>
@@ -828,7 +828,7 @@ export const DoctorDashBoard = () => {
                                         type="submit"
                                         className="w-full py-2.5 bg-[#0f172a] text-white text-sm rounded-xl hover:bg-slate-800 transition-all cursor-pointer font-bold"
                                     >
-                                        Generate Slots
+                                        {t('doctorDashboard.generateSlots')}
                                     </button>
                                 </form>
                             </div>
@@ -837,8 +837,7 @@ export const DoctorDashBoard = () => {
                                 {scheduleDates.length === 0 ? (
                                     <div className="bg-white border border-slate-200/60 rounded-2xl py-20 text-center shadow-sm">
                                         <p className="text-slate-500 text-sm font-semibold">
-                                            No slots created yet. Use the form
-                                            to generate your first shift.
+                                            {t('doctorDashboard.noSlotsCreated')}
                                         </p>
                                     </div>
                                 ) : (
@@ -867,7 +866,7 @@ export const DoctorDashBoard = () => {
                                                                     s.is_booked
                                                             ).length
                                                         }{' '}
-                                                        booked
+                                                        {t('doctorDashboard.booked')}
                                                         {' / '}
                                                         {
                                                             slotsForScheduleDate.filter(
@@ -875,7 +874,7 @@ export const DoctorDashBoard = () => {
                                                                     !s.is_booked
                                                             ).length
                                                         }{' '}
-                                                        available
+                                                        {t('doctorDashboard.available')}
                                                     </span>
                                                 )}
                                             </div>
@@ -884,7 +883,7 @@ export const DoctorDashBoard = () => {
                                             0 ? (
                                                 <div className="bg-white border border-slate-200/60 rounded-2xl py-14 text-center shadow-sm">
                                                     <p className="text-slate-500 text-sm font-semibold">
-                                                        No slots for this day.
+                                                        {t('doctorDashboard.noSlotsDay')}
                                                     </p>
                                                 </div>
                                             ) : (
@@ -943,7 +942,7 @@ export const DoctorDashBoard = () => {
                                                                             }
                                                                             className="w-full mt-1 py-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all cursor-pointer"
                                                                         >
-                                                                            Remove
+                                                                            {t('doctorDashboard.remove')}
                                                                         </button>
                                                                     )}
                                                                 </div>
@@ -961,7 +960,7 @@ export const DoctorDashBoard = () => {
 
                     {activeTab === 'reviews' && (
                         <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm">
-                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Patient Reviews</h3>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">{t('doctorDashboard.patientReviews')}</h3>
                             <DoctorReviews doctorId={currentUser?.id} />
                         </div>
                     )}
@@ -970,11 +969,11 @@ export const DoctorDashBoard = () => {
                         <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm space-y-6">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                    Patient Records
+                                    {t('doctorDashboard.patientRecords')}
                                 </h3>
                                 <input
                                     type="text"
-                                    placeholder="Search by patient name..."
+                                    placeholder={t('doctorDashboard.searchPatient')}
                                     value={searchTerm}
                                     onChange={(e) =>
                                         setSearchTerm(e.target.value)
@@ -987,14 +986,14 @@ export const DoctorDashBoard = () => {
                                     <thead>
                                         <tr className="bg-[#fcfcfc] text-slate-500 font-bold text-xs uppercase tracking-wider border-b border-slate-100">
                                             <th className="p-4 pl-6">
-                                                Patient
+                                                {t('doctorDashboard.patient')}
                                             </th>
                                             <th className="p-4">
-                                                Session Date
+                                                {t('doctorDashboard.sessionDate')}
                                             </th>
-                                            <th className="p-4">Diagnosis</th>
+                                            <th className="p-4">{t('doctorDashboard.diagnosis')}</th>
                                             <th className="p-4 text-center pr-6">
-                                                Records
+                                                {t('doctorDashboard.records')}
                                             </th>
                                         </tr>
                                     </thead>
@@ -1005,7 +1004,7 @@ export const DoctorDashBoard = () => {
                                                     colSpan="4"
                                                     className="text-center py-20 text-slate-500 font-semibold"
                                                 >
-                                                    No completed sessions found.
+                                                    {t('doctorDashboard.noCompleted')}
                                                 </td>
                                             </tr>
                                         ) : (
@@ -1035,21 +1034,21 @@ export const DoctorDashBoard = () => {
                                                     <td className="p-4 max-w-xs truncate text-slate-600 font-medium">
                                                         {app.diagnosis || '—'}
                                                     </td>
-                                                    <td className="p-4 text-center pr-6">
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedHistoryRecord(
-                                                                    app
-                                                                );
-                                                                setHistoryModalOpen(
-                                                                    true
-                                                                );
-                                                            }}
-                                                            className="px-3 py-1.5 bg-white text-slate-700 border border-slate-200 font-semibold text-xs rounded-xl hover:bg-slate-50 transition-all cursor-pointer"
-                                                        >
-                                                            View Record
-                                                        </button>
-                                                    </td>
+                                                            <td className="p-4 text-center pr-6">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedHistoryRecord(
+                                                                            app
+                                                                        );
+                                                                        setHistoryModalOpen(
+                                                                            true
+                                                                        );
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-white text-slate-700 border border-slate-200 font-semibold text-xs rounded-xl hover:bg-slate-50 transition-all cursor-pointer"
+                                                                >
+                                                                    {t('doctorDashboard.viewRecord')}
+                                                                </button>
+                                                            </td>
                                                 </tr>
                                             ))
                                         )}
@@ -1065,10 +1064,10 @@ export const DoctorDashBoard = () => {
                         <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-6 shadow-xl border border-slate-100">
                             <div>
                                 <h3 className="text-lg font-bold text-[#0f172a]">
-                                    Complete Session
+                                    {t('doctorDashboard.completeSession')}
                                 </h3>
                                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                    Patient: {selectedAppointment?.patient_name}
+                                    {t('doctorDashboard.patient')}: {selectedAppointment?.patient_name}
                                 </p>
                             </div>
                             <form
@@ -1078,7 +1077,7 @@ export const DoctorDashBoard = () => {
                             >
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-semibold text-slate-600">
-                                        Diagnosis{' '}
+                                        {t('doctorDashboard.diagnosis')}{' '}
                                         <span className="text-red-400">*</span>
                                     </label>
                                     <textarea
@@ -1091,12 +1090,12 @@ export const DoctorDashBoard = () => {
                                             })
                                         }
                                         className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-1 focus:ring-slate-300 focus:outline-none text-slate-800 transition-all resize-none font-medium placeholder:text-slate-400 placeholder:font-normal"
-                                        placeholder="Enter clinical findings..."
+                                        placeholder={t('doctorDashboard.enterFindings')}
                                     />
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-semibold text-slate-600">
-                                        Prescription{' '}
+                                        {t('doctorDashboard.prescription')}{' '}
                                         <span className="text-red-400">*</span>
                                     </label>
                                     <textarea
@@ -1109,12 +1108,12 @@ export const DoctorDashBoard = () => {
                                             })
                                         }
                                         className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-1 focus:ring-slate-300 focus:outline-none text-slate-800 transition-all resize-none font-medium placeholder:text-slate-400 placeholder:font-normal"
-                                        placeholder="List medications and dosages..."
+                                        placeholder={t('doctorDashboard.listMeds')}
                                     />
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-semibold text-slate-600">
-                                        Doctor Notes{' '}
+                                        {t('doctorDashboard.doctorNotes')}{' '}
                                         <span className="text-slate-400 font-normal">
                                             (optional)
                                         </span>
@@ -1129,7 +1128,7 @@ export const DoctorDashBoard = () => {
                                             })
                                         }
                                         className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-1 focus:ring-slate-300 focus:outline-none text-slate-800 transition-all resize-none font-medium placeholder:text-slate-400 placeholder:font-normal"
-                                        placeholder="Internal notes for follow-up..."
+                                        placeholder={t('doctorDashboard.internalNotes')}
                                     />
                                 </div>
                                 <div className="flex justify-end gap-2 pt-2">
@@ -1138,13 +1137,13 @@ export const DoctorDashBoard = () => {
                                         onClick={() => setOpenModal(false)}
                                         className="px-4 py-2 bg-slate-50 text-slate-600 font-semibold rounded-xl text-xs hover:bg-slate-100 cursor-pointer transition-all"
                                     >
-                                        Cancel
+                                        {t('doctorDashboard.cancel')}
                                     </button>
                                     <button
                                         type="submit"
                                         className="px-4 py-2 bg-[#0f172a] text-white font-bold rounded-xl text-xs hover:bg-slate-800 cursor-pointer transition-all"
                                     >
-                                        Save Record
+                                        {t('doctorDashboard.saveRecord')}
                                     </button>
                                 </div>
                             </form>
@@ -1156,13 +1155,13 @@ export const DoctorDashBoard = () => {
                     <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                         <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100">
                             <h3 className="text-base font-bold text-[#0f172a] border-b border-slate-100 pb-3">
-                                Consultation Record
+                                {t('doctorDashboard.consultationRecord')}
                             </h3>
                             <div className="space-y-4 text-sm">
                                 <div className="grid grid-cols-2 gap-3 bg-[#fafafa] p-3 rounded-xl border border-slate-100">
                                     <div>
                                         <span className="text-[11px] text-slate-500 block font-bold uppercase tracking-wide mb-1">
-                                            Patient
+                                            {t('doctorDashboard.patient')}
                                         </span>
                                         <span className="font-semibold text-slate-800">
                                             {selectedHistoryRecord.patient_name ||
@@ -1171,7 +1170,7 @@ export const DoctorDashBoard = () => {
                                     </div>
                                     <div>
                                         <span className="text-[11px] text-slate-500 block font-bold uppercase tracking-wide mb-1">
-                                            Session Date
+                                            {t('doctorDashboard.sessionDate')}
                                         </span>
                                         <span className="font-semibold text-slate-800">
                                             {selectedHistoryRecord.paid_at
@@ -1191,26 +1190,26 @@ export const DoctorDashBoard = () => {
                                 </div>
                                 <div className="space-y-1">
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block">
-                                        Diagnosis
+                                        {t('doctorDashboard.diagnosis')}
                                     </span>
                                     <p className="bg-slate-50 p-3 rounded-xl border border-slate-200/60 text-slate-700 leading-relaxed text-xs font-medium">
                                         {selectedHistoryRecord.diagnosis ||
-                                            'No diagnosis recorded.'}
+                                            t('doctorDashboard.noDiagnosis')}
                                     </p>
                                 </div>
                                 <div className="space-y-1">
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block">
-                                        Prescription
+                                        {t('doctorDashboard.prescription')}
                                     </span>
                                     <p className="mono bg-emerald-50/40 p-3 rounded-xl border border-emerald-100/60 text-emerald-900 leading-relaxed text-xs whitespace-pre-line">
                                         {selectedHistoryRecord.prescription ||
-                                            'No prescription recorded.'}
+                                            t('doctorDashboard.noPrescription')}
                                     </p>
                                 </div>
                                 {selectedHistoryRecord.doctor_notes && (
                                     <div className="space-y-1">
                                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block">
-                                            Doctor Notes
+                                            {t('doctorDashboard.doctorNotes')}
                                         </span>
                                         <p className="bg-amber-50/40 p-3 rounded-xl border border-amber-100/60 text-amber-900 leading-relaxed text-xs font-medium">
                                             {selectedHistoryRecord.doctor_notes}
@@ -1227,7 +1226,7 @@ export const DoctorDashBoard = () => {
                                     }}
                                     className="px-5 py-2 bg-[#0f172a] text-white font-bold rounded-xl text-xs hover:bg-slate-800 cursor-pointer transition-all shadow-sm"
                                 >
-                                    Close
+                                    {t('common.close')}
                                 </button>
                             </div>
                         </div>

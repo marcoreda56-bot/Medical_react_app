@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react'; // تأكد من وجود lucide-react أو استبدلها بأسهم عادية
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLanguage } from '../../../context/LanguageContext';
 
 export const DoctorsPanel = ({ doctors = [], loading, onBookAppointment, onApprove }) => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(6);
+  const { t } = useLanguage();
 
   // حساب الدكاترة المتاحين للعرض في الصفحة الحالية
   const visibleDoctors = useMemo(() => {
@@ -30,7 +32,7 @@ export const DoctorsPanel = ({ doctors = [], loading, onBookAppointment, onAppro
   if (doctors.length === 0) {
     return (
       <div className="text-center p-12 text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-        No doctors found.
+        {t('admin.panel.doctorsPanel.noDoctors')}
       </div>
     );
   }
@@ -40,9 +42,9 @@ export const DoctorsPanel = ({ doctors = [], loading, onBookAppointment, onAppro
       {/* شبكة عرض كروت الدكاترة */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {visibleDoctors.map((doctor) => {
-          const specialty = doctor.specialty_name || 'General Practitioner';
+          const specialty = doctor.specialty_name || t('admin.panel.doctorsPanel.generalPractitioner');
           const fee = doctor.consultation_fee || '0.00';
-          const address = doctor.clinic_address || 'Clinic address not listed';
+          const address = doctor.clinic_address || t('admin.panel.doctorsPanel.noAddress');
           const bio = doctor.bio || 'No bio available';
           const isApproved = doctor.status === 'approved';
 
@@ -63,11 +65,11 @@ export const DoctorsPanel = ({ doctors = [], loading, onBookAppointment, onAppro
                       
                       {isApproved ? (
                         <span className="inline-flex px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[11px] font-bold rounded border border-emerald-100">
-                          Approved
+                          {t('admin.panel.doctorsPanel.approved')}
                         </span>
                       ) : (
                         <span className="inline-flex px-2 py-0.5 bg-amber-50 text-amber-700 text-[11px] font-bold rounded border border-amber-100">
-                          Pending
+                          {t('admin.panel.doctorsPanel.pending')}
                         </span>
                       )}
                     </div>
@@ -97,7 +99,7 @@ export const DoctorsPanel = ({ doctors = [], loading, onBookAppointment, onAppro
                     onClick={() => onBookAppointment(doctor)}
                     className="w-full mt-3 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
                   >
-                    Book Appointment
+                    {t('admin.panel.doctorsPanel.bookAppointment')}
                   </button>
                 )}
 
@@ -106,7 +108,7 @@ export const DoctorsPanel = ({ doctors = [], loading, onBookAppointment, onAppro
                     onClick={() => onApprove(doctor.id)}
                     className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-sm shadow-emerald-100"
                   >
-                    Approve & Activate Doctor
+                    {t('admin.panel.doctorsPanel.approveActivate')}
                   </button>
                 )}
               </div>
@@ -119,11 +121,11 @@ export const DoctorsPanel = ({ doctors = [], loading, onBookAppointment, onAppro
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-slate-200 pt-4 px-2">
           <div className="text-sm text-slate-500">
-            Showing <span className="font-medium">{page * rowsPerPage + 1}</span> to{' '}
+            {t('admin.panel.doctorsPanel.showing')} <span className="font-medium">{page * rowsPerPage + 1}</span> {t('admin.panel.doctorsPanel.to')}{' '}
             <span className="font-medium">
               {Math.min((page + 1) * rowsPerPage, doctors.length)}
             </span>{' '}
-            of <span className="font-medium">{doctors.length}</span> doctors
+            {t('admin.panel.doctorsPanel.of')} <span className="font-medium">{doctors.length}</span> {t('admin.panel.doctorsPanel.doctors')}
           </div>
           
           <div className="flex items-center gap-2">

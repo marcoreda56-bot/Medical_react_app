@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authAPI } from '../services/api'; 
+import { useLanguage } from '../context/LanguageContext';
 import Swal from 'sweetalert2';
 
 export const VerifyOTP = () => {
@@ -8,23 +9,24 @@ export const VerifyOTP = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useLanguage();
 
   const email = location.state?.email || '';
 
   const handleVerify = async (e) => {
     e.preventDefault();
     if (!otp || otp.length < 6) {
-      Swal.fire({ icon: 'warning', title: 'Invalid Input', text: 'Please enter the 6-digit code.' });
+      Swal.fire({ icon: 'warning', title: t('verify.invalidInput'), text: t('verify.enterCodeMessage') });
       return;
     }
 
     setLoading(true);
     try {
       await authAPI.verifyOTP(email, otp);
-      Swal.fire({ icon: 'success', title: 'Verified!', confirmButtonColor: '#0f766e' });
+      Swal.fire({ icon: 'success', title: t('verify.success'), confirmButtonColor: '#0f766e' });
       navigate('/login');
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Verification Failed', text: 'The code is incorrect or has expired.' });
+      Swal.fire({ icon: 'error', title: t('verify.failed'), text: t('verify.incorrectCode') });
     } finally {
       setLoading(false);
     }
@@ -41,8 +43,8 @@ export const VerifyOTP = () => {
                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
              </svg>
           </div>
-          <h2 className="text-3xl font-extrabold text-slate-800 mb-3">Verify Account</h2>
-          <p className="text-slate-500 text-sm">Enter the code sent to <span className="font-bold text-teal-700">{email || 'your email'}</span></p>
+          <h2 className="text-3xl font-extrabold text-slate-800 mb-3">{t('verify.title')}</h2>
+          <p className="text-slate-500 text-sm">{t('verify.enterCode')} <span className="font-bold text-teal-700">{email || t('verify.yourEmail')}</span></p>
         </div>
 
         <form onSubmit={handleVerify}>
@@ -50,7 +52,7 @@ export const VerifyOTP = () => {
           {/* هنا الـ Input بياخد مساحة سفلية كبيرة ثابتة */}
           <div className="mb-12">
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest text-center mb-4">
-              Verification Code
+              {t('verify.code')}
             </label>
             <input
               type="text"
@@ -67,7 +69,7 @@ export const VerifyOTP = () => {
             disabled={loading}
             className="w-full h-16 text-lg font-bold text-white bg-teal-700 rounded-2xl hover:bg-teal-800 active:scale-95 transition-all shadow-lg shadow-teal-500/30 cursor-pointer"
           >
-            {loading ? 'Verifying...' : 'Activate Account'}
+            {loading ? t('verify.activating') : t('verify.activateAccount')}
           </button>
         </form>
 

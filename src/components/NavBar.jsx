@@ -3,10 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 
 export const Navbar = () => {
-    const { currentUser, userRole, userName, logout } = useAuth();
+    const { currentUser, userRole, userName, userPicture, logout } = useAuth();
     const { t, toggleLanguage } = useLanguage();
     const navigate = useNavigate();
     const location = useLocation();
+
+    const baseUrl = 'http://localhost:8000';
+    const avatarUrl = userPicture?.startsWith('/media/') ? `${baseUrl}${userPicture}` : userPicture;
 
     const handleLogout = async () => {
         try {
@@ -101,22 +104,26 @@ export const Navbar = () => {
 
                         <button
                             onClick={() => navigate('/profile')}
-                            className="p-2 hover:bg-white/10 rounded-full transition-all"
+                            className="p-0.5 hover:bg-white/10 rounded-full transition-all overflow-hidden"
                         >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="w-6 h-6"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                                />
-                            </svg>
+                            {avatarUrl ? (
+                                <img src={avatarUrl} alt="Profile" className="w-8 h-8 rounded-full object-cover" />
+                            ) : (
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="w-6 h-6"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                    />
+                                </svg>
+                            )}
                         </button>
 
                         <button

@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
     const [userRole, setUserRole] = useState(null);
     const [userStatus, setUserStatus] = useState(null);
     const [userName, setUserName] = useState(null);
+    const [userPicture, setUserPicture] = useState(null);
     const [loading, setLoading] = useState(true);
 
     const applyUser = (user) => {
@@ -15,6 +16,7 @@ export const AuthProvider = ({ children }) => {
         setUserRole(user.role);
         setUserStatus(user.is_active ? 'approved' : 'pending');
         setUserName(user.full_name || user.username);
+        setUserPicture(user.profile_picture || null);
     };
 
     const saveTokens = (access, refresh) => {
@@ -86,6 +88,16 @@ export const AuthProvider = ({ children }) => {
         setUserRole(null);
         setUserStatus(null);
         setUserName(null);
+        setUserPicture(null);
+    };
+
+    const refreshUser = async () => {
+        try {
+            const meRes = await axiosInstance.get('/users/me/');
+            applyUser(meRes.data);
+        } catch (err) {
+            console.error('Failed to refresh user:', err);
+        }
     };
 
     return (
@@ -95,11 +107,13 @@ export const AuthProvider = ({ children }) => {
                 userRole,
                 userStatus,
                 userName,
+                userPicture,
                 loading,
                 register,
                 login,
                 loginWithGoogle,
                 logout,
+                refreshUser,
             }}
         >
             {!loading && children}

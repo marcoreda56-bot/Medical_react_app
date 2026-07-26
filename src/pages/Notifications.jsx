@@ -1,4 +1,5 @@
 import { useNotifications } from '../context/NotificationsContext';
+import { useLanguage } from '../context/LanguageContext';
 import {
     Container,
     Paper,
@@ -20,6 +21,7 @@ import axiosInstance from '../api/axios';
 
 const NotificationsPage = () => {
     const { notifications, markAsRead } = useNotifications();
+    const { t } = useLanguage();
     // const navigate = useNavigate();
 
     // const handleOpen = async (n) => {
@@ -35,18 +37,18 @@ const NotificationsPage = () => {
 
     const handleDelete = async (n) => {
         const res = await Swal.fire({
-            title: 'Delete notification?',
+            title: t('notifications.deleteConfirm'),
             showCancelButton: true,
-            confirmButtonText: 'Delete',
+            confirmButtonText: t('notifications.delete'),
             icon: 'warning',
         });
         if (res.isConfirmed) {
             try {
                 await axiosInstance.delete(`/notifications/${n.id}/`);
-                Swal.fire('Deleted', '', 'success');
+                Swal.fire(t('notifications.deleted'), '', 'success');
             } catch (err) {
                 console.error(err);
-                Swal.fire('Failed to delete', '', 'error');
+                Swal.fire(t('notifications.failedDelete'), '', 'error');
             }
         }
     };
@@ -63,17 +65,17 @@ const NotificationsPage = () => {
                     }}
                 >
                     <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-                        Notifications
+                        {t('notifications.title')}
                     </Typography>
                     <Chip
-                        label={`${notifications.filter((n) => !n.read).length} unread`}
+                        label={`${notifications.filter((n) => !n.read).length} ${t('notifications.unread')}`}
                         color="primary"
                     />
                 </Box>
 
                 {notifications.length === 0 ? (
                     <Typography color="textSecondary">
-                        No notifications yet.
+                        {t('notifications.noNotifications')}
                     </Typography>
                 ) : (
                     <List>
@@ -115,7 +117,7 @@ const NotificationsPage = () => {
                                     <IconButton
                                         edge="end"
                                         onClick={() => handleOpen(n)}
-                                        title="Open"
+                                        title={t('notifications.open')}
                                         sx={{ mr: 1 }}
                                     >
                                         <OpenInNewIcon />
@@ -124,7 +126,7 @@ const NotificationsPage = () => {
                                         <IconButton
                                             edge="end"
                                             onClick={() => markAsRead(n.id)}
-                                            title="Mark as read"
+                                            title={t('notifications.markAsRead')}
                                             color="success"
                                             sx={{ mr: 1 }}
                                         >
@@ -134,7 +136,7 @@ const NotificationsPage = () => {
                                     <IconButton
                                         edge="end"
                                         onClick={() => handleDelete(n)}
-                                        title="Delete"
+                                        title={t('notifications.delete')}
                                         color="error"
                                     >
                                         <DeleteIcon />

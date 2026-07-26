@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import axiosInstance from '../api/axios';
+import { useLanguage } from '../context/LanguageContext';
 
 /**
  * DoctorReviews
@@ -14,6 +15,7 @@ import axiosInstance from '../api/axios';
 export const DoctorReviews = ({ doctorId }) => {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
+    const { t } = useLanguage();
 
     useEffect(() => {
         if (!doctorId) return;
@@ -29,7 +31,7 @@ export const DoctorReviews = ({ doctorId }) => {
         return (
             <div className="flex items-center gap-2 py-4 text-slate-400 text-xs font-medium">
                 <span className="w-3 h-3 rounded-full border-2 border-slate-300 border-t-slate-500 animate-spin" />
-                Loading reviews…
+                {t('doctorReviews.loading')}
             </div>
         );
     }
@@ -60,7 +62,7 @@ export const DoctorReviews = ({ doctorId }) => {
         <div className="space-y-3">
             <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                    Patient Reviews
+                    {t('doctorReviews.title')}
                 </span>
                 {avg !== null && (
                     <div className="flex items-center gap-1.5">
@@ -77,7 +79,7 @@ export const DoctorReviews = ({ doctorId }) => {
 
             {reviews.length === 0 ? (
                 <p className="text-xs text-slate-400 italic py-2">
-                    No reviews yet for this doctor.
+                    {t('doctorReviews.noReviews')}
                 </p>
             ) : (
                 <div
@@ -91,7 +93,7 @@ export const DoctorReviews = ({ doctorId }) => {
                         >
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-bold text-[#0f172a]">
-                                    {r.patient_name || 'Anonymous'}
+                                    {r.patient_name || t('doctorReviews.anonymous')}
                                 </span>
                                 <StarRow value={r.rating} />
                             </div>

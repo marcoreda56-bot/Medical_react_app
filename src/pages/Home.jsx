@@ -16,15 +16,20 @@ import {
     Divider,
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { useNavigate } from 'react-router-dom';
 import { DoctorReviews } from '../components/DoctorReviews';
 
 const Home = () => {
-    const { currentUser, userRole, userName } = useAuth();
+    const { currentUser, userRole, userName, userPicture } = useAuth();
+    const { t } = useLanguage();
     const { notifications, markAsRead } = useNotifications();
     const navigate = useNavigate();
     const recent = useMemo(() => notifications.slice(0, 5), [notifications]);
+
+    const baseUrl = 'http://localhost:8000';
+    const avatarUrl = userPicture?.startsWith('/media/') ? `${baseUrl}${userPicture}` : userPicture;
 
     const openNotification = async (n) => {
         try {
@@ -39,18 +44,18 @@ const Home = () => {
 
     const features = [
         {
-            title: 'Easy Booking',
-            desc: 'Schedule appointments in a few clicks and get reminders.',
+            title: t('home.easyBooking'),
+            desc: t('home.easyBookingDesc'),
             icon: '🗓️',
         },
         {
-            title: 'Trusted Care',
-            desc: 'Verified professionals and secure medical records.',
+            title: t('home.trustedCare'),
+            desc: t('home.trustedCareDesc'),
             icon: '🩺',
         },
         {
-            title: 'Fast Messaging',
-            desc: 'Direct secure messaging with your care team.',
+            title: t('home.fastMessaging'),
+            desc: t('home.fastMessagingDesc'),
             icon: '💬',
         },
     ];
@@ -87,15 +92,15 @@ const Home = () => {
                         }}
                     >
                         <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                            Welcome{userName ? `, ${userName}` : ''}!
+                            {t('home.welcome')}{userName ? `, ${userName}` : ''}!
                         </Typography>
                         <Typography sx={{ mt: 1, opacity: 0.95 }}>
                             {userRole === 'doctor' &&
-                                'Manage your schedule, patient requests and reviews from one place.'}
+                                t('home.manageDoctor')}
                             {userRole === 'patient' &&
-                                'Find care, book appointments and message your providers quickly.'}
+                                t('home.findCare')}
                             {userRole === 'admin' &&
-                                'Overview system health and pending tasks.'}
+                                t('home.overviewSystem')}
                         </Typography>
 
                         <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
@@ -114,7 +119,7 @@ const Home = () => {
                                 }
                                 sx={{ backgroundColor: '#ef8354' }}
                             >
-                                Open Dashboard
+                                {t('home.openDashboard')}
                             </Button>
                             <Button
                                 variant="outlined"
@@ -124,14 +129,14 @@ const Home = () => {
                                     borderColor: 'rgba(255,255,255,0.3)',
                                 }}
                             >
-                                View Notifications
+                                {t('home.viewNotifications')}
                             </Button>
                         </Box>
                     </Paper>
 
                     {/* Features */}
                     <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
-                        Key Features
+                        {t('home.keyFeatures')}
                     </Typography>
                     <Grid container spacing={2} sx={{ mb: 3 }}>
                         {features.map((f) => (
@@ -172,7 +177,7 @@ const Home = () => {
 
                     {/* Testimonials / Reviews */}
                     <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
-                        What people say
+                        {t('home.whatPeopleSay')}
                     </Typography>
                     <Paper elevation={1} sx={{ p: 2, borderRadius: 2 }}>
                         {userRole === 'doctor' ? (
@@ -214,7 +219,7 @@ const Home = () => {
                                 gap: 2,
                             }}
                         >
-                            <Avatar sx={{ bgcolor: '#006d77' }}>
+                            <Avatar sx={{ bgcolor: '#006d77' }} src={avatarUrl}>
                                 {userName ? userName[0] : 'U'}
                             </Avatar>
                             <Box>
@@ -240,14 +245,14 @@ const Home = () => {
                                 size="small"
                                 onClick={() => navigate('/profile')}
                             >
-                                Profile
+                                {t('home.profile')}
                             </Button>
                             <Button
                                 variant="outlined"
                                 size="small"
                                 onClick={() => navigate('/appointments')}
                             >
-                                Appointments
+                                {t('home.appointments')}
                             </Button>
                         </Box>
 
@@ -255,12 +260,12 @@ const Home = () => {
                             variant="subtitle1"
                             sx={{ mb: 1, fontWeight: 700 }}
                         >
-                            Recent Notifications
+                            {t('home.recentNotifications')}
                         </Typography>
 
                         {recent.length === 0 ? (
                             <Typography color="text.secondary">
-                                No recent notifications.
+                                {t('home.noRecentNotifications')}
                             </Typography>
                         ) : (
                             <List dense>
@@ -276,7 +281,7 @@ const Home = () => {
                                         />
                                         {!n.read && (
                                             <Chip
-                                                label="New"
+                                                label={t('home.new')}
                                                 color="primary"
                                                 size="small"
                                             />
@@ -289,7 +294,7 @@ const Home = () => {
 
                     <Paper sx={{ p: 3 }} elevation={1}>
                         <Typography sx={{ fontWeight: 800, mb: 1 }}>
-                            Quick Links
+                            {t('home.quickLinks')}
                         </Typography>
                         <Box
                             sx={{
@@ -302,19 +307,19 @@ const Home = () => {
                                 onClick={() => navigate('/patient')}
                                 variant="text"
                             >
-                                My Visits
+                                {t('home.myVisits')}
                             </Button>
                             <Button
                                 onClick={() => navigate('/notifications')}
                                 variant="text"
                             >
-                                All Notifications
+                                {t('home.allNotifications')}
                             </Button>
                             <Button
                                 onClick={() => navigate('/support')}
                                 variant="text"
                             >
-                                Support
+                                {t('home.support')}
                             </Button>
                         </Box>
                     </Paper>

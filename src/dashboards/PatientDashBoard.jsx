@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { doctorAPI, appointmentAPI, specialtyAPI } from '../services/api';
 import axiosInstance from '../api/axios';
 import Swal from 'sweetalert2';
@@ -138,6 +139,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 
 export const PatientDashBoard = () => {
     const { currentUser } = useAuth();
+    const { t } = useLanguage();
     const [activeTab, setActiveTab] = useState(0);
 
     const [doctors, setDoctors] = useState([]);
@@ -542,8 +544,8 @@ export const PatientDashBoard = () => {
                     <span className="flex items-center gap-2">
                         <span>🕐</span>
                         {available === 0
-                            ? 'No slots available'
-                            : `${available} slot${available > 1 ? 's' : ''} available`}
+                            ? t('patientDashboard.noSlots')
+                            : `${available} ${t('patientDashboard.slotsAvailable')}`}
                     </span>
                     {available > 0 && (
                         <svg
@@ -595,7 +597,7 @@ export const PatientDashBoard = () => {
                                             )}
                                         </span>
                                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-white/20 group-hover:text-white border border-emerald-100 group-hover:border-transparent transition-all">
-                                            Book
+                                            {t('patientDashboard.book')}
                                         </span>
                                     </button>
                                 );
@@ -614,23 +616,23 @@ export const PatientDashBoard = () => {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-7 border-b border-slate-200">
                     <div>
                         <h1 className="text-2xl font-bold text-[#0f172a] tracking-tight">
-                            Patient Center
+                            {t('patientDashboard.patientCenter')}
                         </h1>
                         <p className="text-slate-500 text-sm mt-1 font-medium">
-                            Book appointments and manage your health records.
+                            {t('patientDashboard.bookManage')}
                         </p>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-500 bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm font-medium">
                         <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
-                        Welcome back, {currentUser?.first_name || 'Patient'}
+                        {t('patientDashboard.welcomeBack')}, {currentUser?.first_name || t('patientDashboard.patientCenter')}
                     </div>
                 </div>
 
                 {/* Tabs */}
                 <div className="flex border-b border-slate-200 gap-7">
                     {[
-                        { label: 'Book Appointment', icon: '🏥' },
-                        { label: 'My Bookings', icon: '📅' },
+                        { label: t('patientDashboard.bookAppointment'), icon: '🏥' },
+                        { label: t('patientDashboard.myBookings'), icon: '📅' },
                     ].map((tab, i) => (
                         <button
                             key={i}
@@ -658,7 +660,7 @@ export const PatientDashBoard = () => {
                                 <input
                                     type="text"
                                     className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-slate-300 transition-all placeholder:text-slate-400 font-medium"
-                                    placeholder="Search doctor by name..."
+                                    placeholder={t('patientDashboard.searchDoctor')}
                                     value={searchQuery}
                                     onChange={(e) =>
                                         setSearchQuery(e.target.value)
@@ -674,7 +676,7 @@ export const PatientDashBoard = () => {
                                         setDoctorsPage(1); // ✅ reset pagination on filter change
                                     }}
                                 >
-                                    <option value="">All Specialties</option>
+                                    <option value="">{t('patientDashboard.allSpecialties')}</option>
                                     {specialties.map((spec) => (
                                         <option key={spec.id} value={spec.id}>
                                             {spec.name}
@@ -688,7 +690,7 @@ export const PatientDashBoard = () => {
                         {filteredDoctors.length === 0 ? (
                             <div className="bg-white border border-slate-200/60 rounded-2xl py-20 text-center shadow-sm">
                                 <p className="text-slate-500 text-sm font-semibold">
-                                    No doctors found matching your search.
+                                    {t('patientDashboard.noDoctors')}
                                 </p>
                             </div>
                         ) : (
@@ -744,6 +746,9 @@ export const PatientDashBoard = () => {
                                                 '') +
                                             (docItem.last_name?.charAt(0) ||
                                                 '');
+                                        const docPicture = docItem.profile_picture?.startsWith('/media/')
+                                            ? `http://localhost:8000${docItem.profile_picture}`
+                                            : docItem.profile_picture;
 
                                         return (
                                             <div
@@ -753,15 +758,24 @@ export const PatientDashBoard = () => {
                                                 {/* Doctor header */}
                                                 <div className="px-5 pt-5 pb-4 border-b border-slate-100">
                                                     <div className="flex items-start gap-4">
-                                                        <div
-                                                            className="rounded-xl bg-[#0f172a] flex items-center justify-center text-white text-base font-bold shrink-0 select-none"
-                                                            style={{
-                                                                width: 52,
-                                                                height: 52,
-                                                            }}
-                                                        >
-                                                            {initials.toUpperCase()}
-                                                        </div>
+                                                        {docPicture ? (
+                                                            <img
+                                                                src={docPicture}
+                                                                alt={docItem.full_name}
+                                                                className="rounded-xl object-cover shrink-0"
+                                                                style={{ width: 52, height: 52 }}
+                                                            />
+                                                        ) : (
+                                                            <div
+                                                                className="rounded-xl bg-[#0f172a] flex items-center justify-center text-white text-base font-bold shrink-0 select-none"
+                                                                style={{
+                                                                    width: 52,
+                                                                    height: 52,
+                                                                }}
+                                                            >
+                                                                {initials.toUpperCase()}
+                                                            </div>
+                                                        )}
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-start justify-between gap-2">
                                                                 <div>
@@ -789,8 +803,7 @@ export const PatientDashBoard = () => {
                                                                         </span>
                                                                     </p>
                                                                     <p className="text-[10px] text-slate-500 font-medium mt-0.5">
-                                                                        per
-                                                                        session
+                                                                        {t('patientDashboard.perSession')}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -806,8 +819,7 @@ export const PatientDashBoard = () => {
                                                                 className="text-[11px] text-slate-400 hover:text-[#0f172a] font-semibold mt-2 inline-flex items-center gap-1 transition-all cursor-pointer"
                                                             >
                                                                 <span>ℹ️</span>{' '}
-                                                                View profile &
-                                                                reviews
+                                                                {t('patientDashboard.viewProfileReviews')}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -816,12 +828,12 @@ export const PatientDashBoard = () => {
                                                 {/* Day strip */}
                                                 <div className="px-5 pt-4 pb-3">
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                                                        Select a date
+                                                        {t('patientDashboard.selectDate')}
                                                     </p>
                                                     {uniqueDates.length ===
                                                     0 ? (
                                                         <p className="text-xs text-slate-400 italic">
-                                                            No available dates.
+                                                            {t('patientDashboard.noDates')}
                                                         </p>
                                                     ) : (
                                                         <DocDayStrip
@@ -839,7 +851,7 @@ export const PatientDashBoard = () => {
                                                 {/* Slot Dropdown */}
                                                 <div className="px-5 pb-5 pt-1 relative">
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                                                        Available times
+                                                        {t('patientDashboard.availableTimes')}
                                                     </p>
                                                     <SlotDropdown
                                                         docItem={docItem}
@@ -871,17 +883,17 @@ export const PatientDashBoard = () => {
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Your booking history
+                                {t('patientDashboard.yourHistory')}
                             </p>
                             <span className="text-xs text-slate-500 font-semibold bg-white border border-slate-200 px-3 py-1 rounded-lg">
-                                {myAppointments.length} total
+                                {myAppointments.length} {t('patientDashboard.total')}
                             </span>
                         </div>
 
                         {myAppointments.length === 0 ? (
                             <div className="bg-white border border-slate-200/60 rounded-2xl py-20 text-center shadow-sm">
                                 <p className="text-slate-500 text-sm font-semibold">
-                                    You haven't booked any appointments yet.
+                                    {t('patientDashboard.noBookings')}
                                 </p>
                             </div>
                         ) : (
@@ -976,11 +988,11 @@ export const PatientDashBoard = () => {
                                                             }}
                                                             className="px-3 py-1.5 bg-[#0f172a] text-white font-semibold text-xs rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
                                                         >
-                                                            View Rx
+                                                            {t('patientDashboard.viewRx')}
                                                         </button>
                                                     ) : (
                                                         <span className="text-slate-300 text-xs italic">
-                                                            No prescription
+                                                            {t('patientDashboard.noPrescription')}
                                                         </span>
                                                     )}
 
@@ -994,13 +1006,13 @@ export const PatientDashBoard = () => {
                                                                 }
                                                                 className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 font-semibold text-xs rounded-xl hover:bg-amber-100 transition-all cursor-pointer flex items-center gap-1"
                                                             >
-                                                                ⭐ Rate
+                                                                ⭐ {t('patientDashboard.rate')}
                                                             </button>
                                                         )}
                                                     {isCompleted &&
                                                         alreadyReviewed && (
                                                             <span className="px-3 py-1.5 bg-slate-50 text-slate-400 border border-slate-200 font-semibold text-xs rounded-xl flex items-center gap-1 select-none">
-                                                                ✓ Reviewed
+                                                                ✓ {t('patientDashboard.reviewed')}
                                                             </span>
                                                         )}
 
@@ -1013,7 +1025,7 @@ export const PatientDashBoard = () => {
                                                             }
                                                             className="px-3 py-1.5 bg-white text-red-500 border border-red-100 font-semibold text-xs rounded-xl hover:bg-red-50 transition-all cursor-pointer"
                                                         >
-                                                            Cancel
+                                                            {t('patientDashboard.cancel')}
                                                         </button>
                                                     )}
                                                 </div>
@@ -1041,13 +1053,13 @@ export const PatientDashBoard = () => {
                 <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-100">
                         <h3 className="text-base font-bold text-[#0f172a] border-b border-slate-100 pb-3">
-                            Medical Prescription
+                            {t('patientDashboard.medicalPrescription')}
                         </h3>
                         <div className="space-y-3 text-sm">
                             <div className="grid grid-cols-2 gap-3 bg-[#fafafa] p-3 rounded-xl border border-slate-100">
                                 <div>
                                     <span className="text-[11px] text-slate-500 block font-bold uppercase tracking-wide mb-1">
-                                        Doctor
+                                        {t('patientDashboard.doctor')}
                                     </span>
                                     <span className="font-semibold text-slate-800">
                                         Dr. {selectedRecord.doctor_name}
@@ -1055,7 +1067,7 @@ export const PatientDashBoard = () => {
                                 </div>
                                 <div>
                                     <span className="text-[11px] text-slate-500 block font-bold uppercase tracking-wide mb-1">
-                                        Date
+                                        {t('patientDashboard.date')}
                                     </span>
                                     <span className="font-semibold text-slate-800">
                                         {fmtDate(
@@ -1066,7 +1078,7 @@ export const PatientDashBoard = () => {
                             </div>
                             <div>
                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">
-                                    Prescription
+                                    {t('patientDashboard.prescription')}
                                 </span>
                                 <div className="p-4 bg-emerald-50/40 border border-emerald-100/60 rounded-xl text-emerald-900 font-mono text-xs whitespace-pre-line leading-relaxed">
                                     {selectedRecord.prescription}
@@ -1075,7 +1087,7 @@ export const PatientDashBoard = () => {
                             {selectedRecord.diagnosis && (
                                 <div>
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">
-                                        Diagnosis
+                                        {t('patientDashboard.diagnosis')}
                                     </span>
                                     <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
                                         {selectedRecord.diagnosis}
@@ -1088,7 +1100,7 @@ export const PatientDashBoard = () => {
                                 onClick={() => setOpenModal(false)}
                                 className="px-5 py-2 bg-[#0f172a] text-white font-bold rounded-xl text-xs hover:bg-slate-800 cursor-pointer transition-all shadow-sm"
                             >
-                                Close
+                                {t('patientDashboard.close')}
                             </button>
                         </div>
                     </div>
@@ -1113,7 +1125,7 @@ export const PatientDashBoard = () => {
                                     {selectedDoctorProfile.last_name}
                                 </h3>
                                 <span className="text-xs text-slate-500 font-semibold">
-                                    {selectedDoctorProfile.specialty_name || 'Specialist'}
+                                    {selectedDoctorProfile.specialty_name || t('patientDashboard.patientCenter')}
                                 </span>
                             </div>
                         </div>
@@ -1122,18 +1134,18 @@ export const PatientDashBoard = () => {
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="bg-[#fafafa] p-3 rounded-xl border border-slate-100 text-center">
                                     <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide mb-1">
-                                        Consultation Fee
+                                        {t('patientDashboard.consultationFee')}
                                     </p>
                                     <p className="text-lg font-bold text-[#0f172a]">
                                         {Number(selectedDoctorProfile.consultation_fee) || 250}
                                     </p>
                                     <p className="text-[11px] text-slate-500 font-medium">
-                                        EGP / session
+                                        {t('patientDashboard.egpSession')}
                                     </p>
                                 </div>
                                 <div className="bg-[#fafafa] p-3 rounded-xl border border-slate-100 text-center">
                                     <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide mb-1">
-                                        Contact
+                                        {t('patientDashboard.contact')}
                                     </p>
                                     <p className="text-xs font-semibold text-[#0f172a] break-all">
                                         {selectedDoctorProfile.phone ||
@@ -1146,7 +1158,7 @@ export const PatientDashBoard = () => {
                             {selectedDoctorProfile.clinic_address && (
                                 <div>
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
-                                        📍 Clinic Address
+                                        {t('patientDashboard.clinicAddress')}
                                     </span>
                                     <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
                                         {selectedDoctorProfile.clinic_address}
@@ -1156,12 +1168,12 @@ export const PatientDashBoard = () => {
 
                             <div>
                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
-                                    📋 Biography
+                                    {t('patientDashboard.biography')}
                                 </span>
                                 {/* ✅ FIX: bio flat من selectedDoctorProfile مباشرة */}
                                 <p className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-700 text-xs leading-relaxed font-medium">
                                     {selectedDoctorProfile.bio ||
-                                        'No biography provided by the doctor.'}
+                                        t('patientDashboard.noBiography')}
                                 </p>
                             </div>
 
@@ -1177,7 +1189,7 @@ export const PatientDashBoard = () => {
                                 onClick={() => setDoctorModalOpen(false)}
                                 className="px-5 py-2 bg-[#0f172a] text-white font-bold rounded-xl text-xs hover:bg-slate-800 cursor-pointer transition-all shadow-sm"
                             >
-                                Close
+                                {t('patientDashboard.close')}
                             </button>
                         </div>
                     </div>
